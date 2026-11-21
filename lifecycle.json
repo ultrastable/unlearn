@@ -1,0 +1,76 @@
+{
+ "_doc": "SEED-LIFECYCLE-1 answers for the Unlearn tenant (PR 1852). Safeguards map to instances/unlearn/runway.json; read by foundation/seedlife.py.",
+ "slug": "unlearn",
+ "build": {
+  "paths": [
+   "instances/unlearn/worker/index.js",
+   "instances/unlearn/worker/logic.js"
+  ],
+  "tests": [
+   "instances/unlearn/worker/worker.test.mjs"
+  ]
+ },
+ "deploy": {
+  "worker": "ultrastable-unlearn"
+ },
+ "verify": {
+  "url": "https://unlearn.ultrastable.app/health",
+  "expect": "\"ok\":true"
+ },
+ "loops": [
+  "unlearn-beat"
+ ],
+ "survival": {
+  "credentials": {
+   "inherit": "cloudflare-api-tokens"
+  },
+  "source-control": {
+   "inherit": "github-app-token"
+  },
+  "budget": {
+   "status": "closed",
+   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "how": "runway.json ai-cost: AI_DAILY_CAP and library fallback; abuse cap 30 writes per source per day"
+  },
+  "cost-alerts": {
+   "inherit": "cloudflare-alerts"
+  },
+  "payment": {
+   "inherit": "payment-method"
+  },
+  "dependencies": {
+   "status": "closed",
+   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "how": "runway.json dependency-drift: zero npm dependencies, pinned compatibility_date"
+  },
+  "runtime": {
+   "inherit": "node-runtime"
+  },
+  "models": {
+   "status": "closed",
+   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "how": "runway.json model-retired: moves come from the library with no model; re-wording is optional"
+  },
+  "health": {
+   "status": "closed",
+   "probe": "cmd:python3 -m foundation seedlife --verify",
+   "how": "the watchdog fetches the verify URL every pass; a failing reading reopens Q-SEED and the handoff closer rolls back"
+  },
+  "backups": {
+   "inherit": "offsite-backup"
+  },
+  "renewal": {
+   "inherit": "domain-renewal"
+  },
+  "improvement": {
+   "status": "closed",
+   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "how": "hourly beat re-learns move weights by Beta sampling on 14-day outcomes and opens the next phase when its gates hold"
+  },
+  "privacy": {
+   "status": "closed",
+   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "how": "runway.json child-data and storage-growth: no child accounts before phase 3 prerequisites; retention prunes text after 400 days. Phase 3 needs a controller entity (owner_only unlearn-controller-entity, default: phase 3 stays closed)"
+  }
+ }
+}
