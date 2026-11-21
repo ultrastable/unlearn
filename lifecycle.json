@@ -14,7 +14,7 @@
   "worker": "ultrastable-unlearn"
  },
  "verify": {
-  "url": "https://unlearn.ultrastable.app/health",
+  "url": "https://unlearn.ultrastable.org/health",
   "expect": "\"ok\":true"
  },
  "loops": [
