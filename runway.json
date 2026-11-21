@@ -1,0 +1,21 @@
+{
+  "_doc": "Unlearn: what could stop it within a year of no input, and the safeguard for each. Every probe is checked by tests/foundation/test_unlearn.py (file and grep probes must hold; test probes name a test that exists). Platform-wide faults (Actions outages, GitHub and Cloudflare incidents, Node end of life) are covered by doctrine/yearsim.json and apply to this Worker too.",
+  "target_days": 365,
+  "risks": [
+    {"id": "model-retired", "what": "Workers AI retires the model that re-words moves (happened 2026-11-20 to the platform)", "safeguard": "moves come from the library with no model; models are read from doctrine/models.json fallback_order (refreshed by modelwatch), each failure falls through to the next and then to the library text", "probe": "test:a model re-wording that explains is refused and the library text is kept; a retired model falls through to the next"},
+    {"id": "ai-cost", "what": "model calls grow with traffic past the budget", "safeguard": "AI_DAILY_CAP (default 200 calls a day) and the library fallback; the account-wide spend governor (seed/worker/src/spend.js) still applies", "probe": "test:the AI daily cap holds and the app keeps answering from the library"},
+    {"id": "abuse", "what": "one source floods writes and fills D1", "safeguard": "30 writes per source per day by a daily one-way hash; inputs capped at 280 and 1000 characters", "probe": "test:writes per source per day are capped with a plain message"},
+    {"id": "storage-growth", "what": "D1 grows without bound over a year", "safeguard": "hourly retention: text older than 400 days removed, counters kept 30 days, beats 90 days", "probe": "test:retention removes old text and keeps the counts; health reports a stopped clock"},
+    {"id": "cron-silent", "what": "the Cloudflare cron stops firing or is dropped on a redeploy", "safeguard": "a visit runs the beat when the last one is over 2 hours old; the unlearn-beat clock in doctrine/clocks.json is read by the watchdog from D1 and a stopped clock is a defect", "probe": "test:a silent cron is caught up by the next visit (second route for the clock)"},
+    {"id": "credential-expiry", "what": "a token or secret expires", "safeguard": "the Worker holds no secret; deploys use the GitHub OIDC token minted per run (deploy-ultrastable.yml), so nothing expires", "probe": "grep:doctrine/topology.json::\"main\": \"instances/unlearn/worker/index.js\""},
+    {"id": "dependency-drift", "what": "an npm package breaks or is withdrawn", "safeguard": "zero dependencies: plain Worker modules, a pinned compatibility_date, node:sqlite only in tests", "probe": "file:instances/unlearn/worker/index.js"},
+    {"id": "deploy-path-down", "what": "the OIDC deploy route fails", "safeguard": "two routes: deploy-ultrastable.yml through the site deployer, and deploy/deploy-workers.mjs with wrangler; both read doctrine/topology.json", "probe": "grep:.github/workflows/deploy-ultrastable.yml::instances/unlearn/worker"},
+    {"id": "answer-leak", "what": "a move explains the answer and turns coaching back into teaching", "safeguard": "the answer guard checks every library move in tests and every model re-wording at runtime", "probe": "test:no library move explains an answer, and every kind and age band is covered"},
+    {"id": "phase-stuck", "what": "phase 1 never meets its gates, so nothing moves on", "safeguard": "gates are measured every hour and published at /api/metrics with value and sample; phase 2 opens by itself the hour they hold", "probe": "test:phase 2 opens by itself when the phase 1 gates hold, and its school-group UI lights"},
+    {"id": "child-data", "what": "children's personal data enters before the law allows", "safeguard": "phase 3 cannot open on metrics alone; it needs every prerequisite in phases.json and the controller-entity gate", "probe": "test:phase 3 never opens on metrics alone: it needs its privacy prerequisites"},
+    {"id": "owner-halt", "what": "the owner halts the platform", "safeguard": "HALT stops the cron and new writes; reads keep serving", "probe": "test:HALT stops the cron and new writes; reads keep serving"}
+  ],
+  "owner_only": [
+    {"id": "unlearn-controller-entity", "what": "a legal entity that is data controller for direct child accounts (phase 3)", "default_in_effect": "phase 3 stays closed; phases 1 and 2 run"}
+  ]
+}
