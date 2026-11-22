@@ -6,7 +6,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;
 export function page({ phase = 1, ages = [] } = {}) {
   const ageLabel = { u6: "Under 6", "6-9": "6 to 9", "10-13": "10 to 13", "14+": "14 and up" };
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Unlearn</title><meta name="description" content="Most of what kids want to learn, you can't teach them. A coaching companion for the adult beside a curious child.">
+<title>Coach a curious child · Unlearn</title><meta name="description" content="Most of what kids want to learn, you can't teach them. A coaching companion for the adult beside a curious child.">
 <style>
 :root{--bg:#fbf8f3;--fg:#1f1d1a;--muted:#5f5a52;--card:#fff;--line:#e4ddd2;--accent:#b4501e;--accent-fg:#fff;--ok:#2e6b3a}
 @media (prefers-color-scheme:dark){:root{--bg:#171513;--fg:#f1ece4;--muted:#b3aa9c;--card:#211e1b;--line:#3a352f;--accent:#f08a50;--accent-fg:#1a0f08;--ok:#8fd19e}}
@@ -25,7 +25,8 @@ textarea{width:100%;min-height:88px;font:inherit;border:1px solid var(--line);bo
 h2{font-size:1.25rem;margin:32px 0 8px}ul{padding-left:20px}.ok{color:var(--ok)}[hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body><main>
-<h1>Unlearn</h1>
+<p class="muted"><a href="/">Unlearn</a>: the evidence encyclopedia. This page is its tool for adults around curious children.</p>
+<h1>Coach a curious child</h1>
 <p class="lede">You don't teach curiosity. You coach it. Tell us what the child is wondering about, and get one coaching move. It's never the answer.</p>
 <blockquote>"Most of what kids want to learn, you can't teach them." A coach at Agora, in Rutger Bregman's <i>Humankind</i></blockquote>
 <form id="ask" autocomplete="off"><label for="q" class="muted">What is the child curious about?</label>

@@ -4,10 +4,14 @@
  "build": {
   "paths": [
    "instances/unlearn/worker/index.js",
-   "instances/unlearn/worker/logic.js"
+   "instances/unlearn/worker/logic.js",
+   "instances/unlearn/worker/entries.js",
+   "instances/unlearn/worker/evidence.js",
+   "instances/unlearn/worker/site.js"
   ],
   "tests": [
-   "instances/unlearn/worker/worker.test.mjs"
+   "instances/unlearn/worker/worker.test.mjs",
+   "instances/unlearn/worker/encyclopedia.test.mjs"
   ]
  },
  "deploy": {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LicenseRef-Ultrastable-USL-1.0
 // Copyright (c) Ultrastable
-// Unlearn: "Most of what kids want to learn, you can't teach them." A coaching companion for the adult beside a curious child.
+// Unlearn: an evidence encyclopedia of popular beliefs the evidence contradicts (entries.js, pages in site.js, evidence loop in evidence.js),
+// plus the original coaching companion for the adult beside a curious child, now at /coach ("Most of what kids want to learn, you can't teach them.").
 // One Worker, one D1 database, one hourly cron. It needs no secret and no model to run: moves come from the library (moves.js), chosen by
 // weights learned from 7 and 14 day follow-ups; a Workers AI model may re-word a move only inside the daily cap and behind the answer guard.
 // The hourly beat re-learns weights, records metrics, opens the next phase when its gates are met (../phases.json) and prunes old data.
@@ -9,6 +10,9 @@ import { MOVES, AGE_BANDS } from "./moves.js";
 import { LIMITS, LED, FIRST_KINDS, nextKinds, topicOf, pickMove, render, guardRewording, classifyNote, dueFollowups, metrics, openPhase, gateReport, PHASES } from "./logic.js";
 import MODELS from "../../../doctrine/models.json" with { type: "json" };
 import { page } from "./page.js";
+import { ENTRIES, CATEGORIES } from "./entries.js";
+import { checkEntries, freshness, reviewQueue } from "./evidence.js";
+import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound } from "./site.js";
 
 const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS explorations (id TEXT PRIMARY KEY, token TEXT UNIQUE NOT NULL, created INTEGER NOT NULL, topic TEXT NOT NULL, age TEXT, move_id TEXT NOT NULL, move_text TEXT NOT NULL, reworded INTEGER NOT NULL DEFAULT 0, f7 INTEGER, f14 INTEGER, adult TEXT, grp TEXT, pseudonym TEXT)",
@@ -18,7 +22,12 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS groups_ (code TEXT PRIMARY KEY, created INTEGER NOT NULL, name TEXT NOT NULL)",
   "CREATE TABLE IF NOT EXISTS counters (day TEXT NOT NULL, key TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, key))",
   "CREATE TABLE IF NOT EXISTS beats (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, started_at TEXT NOT NULL, phase INTEGER NOT NULL, metrics TEXT NOT NULL, pruned INTEGER NOT NULL DEFAULT 0, error TEXT)",
-  "CREATE TABLE IF NOT EXISTS state (k TEXT PRIMARY KEY, v TEXT NOT NULL)"
+  "CREATE TABLE IF NOT EXISTS state (k TEXT PRIMARY KEY, v TEXT NOT NULL)",
+  // encyclopedia: source DOIs resolved by Crossref, new reviews found on Europe PMC, when each entry was last checked, anonymous reader taps
+  "CREATE TABLE IF NOT EXISTS sources (key TEXT PRIMARY KEY, entry TEXT NOT NULL, doi TEXT, found_title TEXT, tried INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY AUTOINCREMENT, entry TEXT NOT NULL, ref TEXT NOT NULL, title TEXT, venue TEXT, year INTEGER, url TEXT, found INTEGER NOT NULL, reviewed INTEGER NOT NULL DEFAULT 0, UNIQUE(entry, ref))",
+  "CREATE TABLE IF NOT EXISTS evidence_checks (entry TEXT PRIMARY KEY, at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS reader_counts (entry TEXT NOT NULL, key TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (entry, key))"
 ];
 // Columns added after the first deploy. SQLite has no ADD COLUMN IF NOT EXISTS, so a duplicate-column error means already applied;
 // any other error is thrown (never swallowed).
@@ -46,6 +55,8 @@ async function sourceKey(req) {  // a daily, one-way key per source: the address
   return "src:" + [...new Uint8Array(h)].slice(0, 8).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 async function allowWrite(db, req) { return (await bump(db, await sourceKey(req))) <= LIMITS.writes_per_source_day; }
+const TAPS_PER_SOURCE_DAY = 300;  // reader guesses and shifts have their own cap, so playing never uses up the coaching cap
+async function allowTap(db, req) { return (await bump(db, (await sourceKey(req)) + ":tap")) <= TAPS_PER_SOURCE_DAY; }
 async function getState(db, k, d = null) { const r = await db.prepare("SELECT v FROM state WHERE k=?1").bind(k).first(); return r ? JSON.parse(r.v) : d; }
 async function setState(db, k, v) { await db.prepare("INSERT INTO state (k, v) VALUES (?1, ?2) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(k, JSON.stringify(v)).run(); }
 
@@ -93,6 +104,41 @@ export async function computeMetrics(db, now = Date.now()) {
   return { ...m, explorations_total: totals ? totals.n : 0, explorations_7d: totals ? (totals.d7 || 0) : 0 };
 }
 
+// The encyclopedia's evidence loop needs the network. In the Worker it uses fetch; tests inject env.FETCH; anywhere else it is skipped.
+function evidenceFetch(env) {
+  if (env.FETCH) return env.FETCH;
+  if (env.EVIDENCE_OFF === "1") return null;
+  return typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers" ? fetch : null;
+}
+async function checkedMap(db) { return Object.fromEntries((((await db.prepare("SELECT entry, at FROM evidence_checks").all()).results) || []).map(r => [r.entry, r.at])); }
+async function doiMap(db, entry) {
+  const { results } = await db.prepare("SELECT key, doi FROM sources WHERE entry=?1 AND doi IS NOT NULL").bind(entry).all();
+  return Object.fromEntries((results || []).map(r => [Number(r.key.split("#")[1]), r.doi]));
+}
+async function readerCounts(db, entry) {
+  const { results } = await db.prepare("SELECT key, n FROM reader_counts WHERE entry=?1").bind(entry).all();
+  return Object.fromEntries((results || []).map(r => [r.key, r.n]));
+}
+// Encyclopedia measures: evidence coverage and freshness, and what readers' taps show (surprise = wrong guesses / guesses; shift = yes or a little / answers).
+export async function encyclopediaMetrics(db, now = Date.now()) {
+  const src = await db.prepare("SELECT COUNT(*) n, SUM(CASE WHEN doi IS NOT NULL THEN 1 ELSE 0 END) d FROM sources").first();
+  const leads = await db.prepare("SELECT COUNT(*) n FROM leads WHERE reviewed=0").first();
+  const rc = (await db.prepare("SELECT entry, key, n FROM reader_counts").all()).results || [];
+  let guesses = 0, wrong = 0, shiftYes = 0, shiftAll = 0; const per = {};
+  for (const r of rc) {
+    const e = byId[r.entry]; if (!e) continue;
+    per[r.entry] = per[r.entry] || { g: 0, w: 0 };
+    if (r.key.startsWith("guess:")) { guesses += r.n; per[r.entry].g += r.n; if (Number(r.key.slice(6)) !== e.guess.answer) { wrong += r.n; per[r.entry].w += r.n; } }
+    if (r.key.startsWith("shift:")) { shiftAll += r.n; if (r.key !== "shift:no") shiftYes += r.n; }
+  }
+  const fresh = freshness(await checkedMap(db), now);
+  const sources_total = ENTRIES.reduce((n, e) => n + e.sources.length, 0);
+  const surprising = Object.entries(per).filter(([, v]) => v.g >= 5).map(([entry, v]) => ({ entry, surprise: v.w / v.g, guesses: v.g })).sort((a, b) => b.surprise - a.surprise).slice(0, 6);
+  return { entries: ENTRIES.length, categories: CATEGORIES.length, sources_total, sources_resolved: (src && src.d) || 0, leads: (leads && leads.n) || 0,
+    entries_fresh: fresh.checked, evidence_fresh_share: fresh.checked / fresh.entries, guesses, surprise_share: guesses ? wrong / guesses : null,
+    shift_answers: shiftAll, shift_share: shiftAll ? shiftYes / shiftAll : null, surprising };
+}
+
 // The hourly beat: the loop that closes itself.
 export async function beat(env, now = Date.now()) {
   const db = env.DB; await ensure(db);
@@ -115,6 +161,16 @@ export async function beat(env, now = Date.now()) {
     await db.prepare("DELETE FROM beats WHERE at < ?1").bind(now - 90 * 86400000).run();
     pruned = ((a.meta && a.meta.changes) || 0) + ((b.meta && b.meta.changes) || 0);
   } catch (e) { err = String(e && e.message || e); console.error("unlearn beat", err); }
+  // 5. the encyclopedia's evidence loop: resolve sources, watch for new reviews. A source or search failure is logged and retried next beat;
+  // it never stops the coaching loop above.
+  const f = evidenceFetch(env);
+  if (f) {
+    try {
+      const ev = await checkEntries(db, now, f);
+      m.evidence = { checked: ev.checked, resolved: ev.resolved, new_leads: ev.leads, errors: ev.errors.length };
+      for (const x of ev.errors) console.error("unlearn evidence", x);
+    } catch (e) { m.evidence = { error: String(e && e.message || e) }; console.error("unlearn evidence", m.evidence.error); }
+  }
   await db.prepare("INSERT INTO beats (at, started_at, phase, metrics, pruned, error) VALUES (?1, ?2, ?3, ?4, ?5, ?6)").bind(now, new Date(now).toISOString(), phase, JSON.stringify(m), pruned, err).run();
   return { ok: !err, phase, metrics: m, pruned, error: err };
 }
@@ -126,7 +182,8 @@ export async function health(env, now = Date.now()) {
   const ai = await db.prepare("SELECT key, n FROM counters WHERE day=?1 AND (key='ai_calls' OR key LIKE 'ai_error:%' OR key='ai_guard_refused')").bind(day(now)).all();
   const clock = last === null ? "no beat yet" : age <= 90 ? "ticking" : age <= 180 ? "late" : "stopped";
   return { ok: clock !== "stopped" && !(last && last.error), service: "unlearn", phase: last ? last.phase : 1, clock, last_beat_minutes_ago: age, last_error: last ? last.error : null,
-    ai: { binding: !!env.AI, models: modelOrder(), today: Object.fromEntries(((ai && ai.results) || []).map(r => [r.key, r.n])) }, halted: halted(env), moves_in_library: MOVES.length };
+    ai: { binding: !!env.AI, models: modelOrder(), today: Object.fromEntries(((ai && ai.results) || []).map(r => [r.key, r.n])) }, halted: halted(env), moves_in_library: MOVES.length,
+    encyclopedia: { entries: ENTRIES.length, categories: CATEGORIES.length, evidence_loop: !!evidenceFetch(env) } };
 }
 
 async function body(req) { try { return await req.json(); } catch (e) { return null; } }
@@ -148,14 +205,59 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     const ran = await catchUp(env, null, now); return J({ ok: true, ran });
   }
   if (u.pathname === "/health") { const h = await health(env, now); return J(h, h.ok ? 200 : 503); }
-  if (u.pathname === "/" || u.pathname === "/index.html") {
+  const html = (h, s = 200) => new Response(h, { status: s, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
+  if (req.method === "GET" || req.method === "HEAD") {
+    const p = u.pathname.replace(/\/+$/, "") || "/";
+    if (p === "/" || p === "/index.html") { await catchUp(env, ctx, now); const m = await encyclopediaMetrics(db, now); return html(home({ stats: m, surprising: m.surprising })); }
+    if (p === "/topics") return html(topics());
+    if (p.startsWith("/topics/")) { const h = topic(p.slice(8)); if (h) return html(h); }
+    if (p.startsWith("/e/")) {
+      const e = byId[p.slice(3)];
+      if (e) {
+        const leads = (await db.prepare("SELECT title, venue, year, url FROM leads WHERE entry=?1 AND reviewed=0 ORDER BY found DESC LIMIT 8").bind(e.id).all()).results || [];
+        return html(entryPage(e, { dois: await doiMap(db, e.id), leads, counts: await readerCounts(db, e.id) }));
+      }
+    }
+    if (p === "/search") return html(searchPage(u.searchParams.get("q") || ""));
+    if (p === "/play") return html(playPage());
+    if (p === "/how") return html(howPage({ fresh: freshness(await checkedMap(db), now), metrics: await encyclopediaMetrics(db, now) }));
+    if (p === "/sitemap.xml") return new Response(sitemap(), { headers: { "content-type": "application/xml; charset=utf-8" } });
+    if (p === "/robots.txt") return new Response("User-agent: *\nAllow: /\nSitemap: https://unlearn.ultrastable.org/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8" } });
+    if (p === "/api/entries.json") {
+      const all = (await db.prepare("SELECT key, entry, doi FROM sources WHERE doi IS NOT NULL").all()).results || [];
+      const dmap = {}; for (const r of all) (dmap[r.entry] = dmap[r.entry] || {})[Number(r.key.split("#")[1])] = r.doi;
+      return J({ ok: true, categories: CATEGORIES, entries: ENTRIES.map(e => entryJson(e, dmap[e.id] || {})) });
+    }
+    if (p.startsWith("/api/entries/")) { const e = byId[p.slice(13).replace(/\.json$/, "")]; if (e) return J({ ok: true, entry: entryJson(e, await doiMap(db, e.id)) }); }
+    if (p === "/api/freshness") { const fr = freshness(await checkedMap(db), now); return J(fr, fr.ok ? 200 : 503); }
+    if (p === "/api/leads") return J({ ok: true, leads: (await db.prepare("SELECT entry, ref, title, venue, year, url, found FROM leads WHERE reviewed=0 ORDER BY found DESC LIMIT 200").all()).results || [] });
+    if (p === "/api/review-queue.json") {
+      const rows = (await db.prepare("SELECT entry, COUNT(*) n FROM leads WHERE reviewed=0 GROUP BY entry").all()).results || [];
+      return J({ ok: true, queue: reviewQueue(Object.fromEntries(rows.map(r => [r.entry, r.n]))) });
+    }
+  }
+  if (u.pathname === "/api/guess" && req.method === "POST") {
+    const b = await body(req); const e = b && byId[b.entry]; const c = b && Number(b.choice);
+    if (!e || !Number.isInteger(c) || c < 0 || c >= e.guess.options.length) return say("bad", "Pick one of the answers.");
+    if (!(await allowTap(db, req))) return J({ ok: true, counted: false });  // over the daily cap: thanked, not counted
+    await db.prepare("INSERT INTO reader_counts (entry, key, n) VALUES (?1, ?2, 1) ON CONFLICT(entry, key) DO UPDATE SET n = n + 1").bind(e.id, "guess:" + c).run();
+    return J({ ok: true, counted: true, right: c === e.guess.answer });
+  }
+  if (u.pathname === "/api/shift" && req.method === "POST") {
+    const b = await body(req); const e = b && byId[b.entry];
+    if (!e || !["yes", "some", "no"].includes(b.shift)) return say("bad", "Choose yes, a little, or no.");
+    if (!(await allowTap(db, req))) return J({ ok: true, counted: false });
+    await db.prepare("INSERT INTO reader_counts (entry, key, n) VALUES (?1, ?2, 1) ON CONFLICT(entry, key) DO UPDATE SET n = n + 1").bind(e.id, "shift:" + b.shift).run();
+    return J({ ok: true, counted: true });
+  }
+  if (u.pathname === "/coach" || u.pathname === "/coach/") {
     await catchUp(env, ctx, now);
     const phase = await getState(db, "phase", 1);
     return new Response(page({ phase, ages: AGE_BANDS }), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
   }
   if (u.pathname === "/api/metrics" && req.method === "GET") {
     const m = await computeMetrics(db, now), phase = await getState(db, "phase", 1);
-    return J({ ok: true, phase, metrics: m, gates: gateReport(m), measured_at: new Date(now).toISOString() });
+    return J({ ok: true, phase, metrics: m, gates: gateReport(m), encyclopedia: await encyclopediaMetrics(db, now), measured_at: new Date(now).toISOString() });
   }
   if (u.pathname === "/api/phase") return J({ ok: true, phase: await getState(db, "phase", 1), phases: PHASES.phases.map(p => ({ id: p.id, name: p.name, audience: p.audience })) });
   if (u.pathname === "/api/curiosity" && req.method === "POST") {
@@ -210,6 +312,7 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     await db.prepare("INSERT INTO groups_ (code, created, name) VALUES (?1, ?2, ?3)").bind(code, now, String((b && b.name) || "Group").slice(0, 60)).run();
     return J({ ok: true, code });
   }
+  if (req.method === "GET" && !u.pathname.startsWith("/api/")) return html(notFound(), 404);
   return say("not_found", "There's nothing here.", 404);
 }
 

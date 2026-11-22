@@ -23,7 +23,7 @@ const get = (p) => new Request('https://u.test' + p);
 const DAY = 86400000;
 
 test('page renders the pill ask bar with a mic and age chips', async () => {
-  const r = await handle(get('/'), env()); const h = await r.text();
+  const r = await handle(get('/coach'), env()); const h = await r.text();
   assert.equal(r.status, 200); assert.match(h, /class="pill"/); assert.match(h, /id="mic"/); assert.match(h, /data-age="6-9"/);
   assert.doesNotMatch(h, /Coaching a school group/, 'phase 2 UI stays dark in phase 1');
 });
@@ -84,7 +84,7 @@ test('phase 2 opens by itself when the phase 1 gates hold, and its school-group 
   assert.equal((await handle(post('/api/group', {}), e, t)).status, 403);
   const b = await beat(e, t + DAY); assert.equal(b.phase, 2);
   assert.equal((await handle(post('/api/group', { name: 'Coach A' }, '10.9.9.9'), e, t)).status, 200);
-  assert.match(await (await handle(get('/'), e)).text(), /Coaching a school group/);
+  assert.match(await (await handle(get('/coach'), e)).text(), /Coaching a school group/);
   const m = await (await handle(get('/api/metrics'), e, t + DAY)).json(); assert.ok(m.gates[0].gates.every(g => g.met));
 });
 
@@ -169,7 +169,7 @@ test('move kind variety is measured (wide walls)', async () => {
 });
 
 test('no extrinsic hooks: the page has no score, streak, badge, points or leaderboard', async () => {
-  const h = await (await handle(get('/'), env())).text();
+  const h = await (await handle(get('/coach'), env())).text();
   assert.doesNotMatch(h.replace(/No grades, streaks or child accounts/g, ''), /\b(streaks?|badges?|points|leaderboard|score|level up|XP)\b/i);
 });
 

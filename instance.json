@@ -2,17 +2,61 @@
   "name": "Unlearn",
   "slug": "unlearn",
   "kind": "community",
-  "owner": {"name": "Rowan", "jurisdiction": "NL", "contact_binding": "OWNER_CONTACT", "contact_binding_backup": "OWNER_CONTACT_BACKUP"},
-  "brand": {"public_name": "Unlearn", "tagline": "Most of what kids want to learn, you can't teach them. A coaching companion for curiosity-led learning, run on Ultrastable, the foundation for any autonomous system.", "separate_from": ["Ultrastable", "QNFO", "Practical Solutions"]},
-  "idea": "A coaching companion for the adults around a curious child: log what the child is curious about, get a coaching move (a question back, something to try, a person or place, a reason to wait) instead of a lesson, and let the system follow up at 7 and 14 days and re-weight its moves by whether the child kept going on their own.",
-  "goals": ["Answer every logged curiosity with a coaching move and follow it up at 7 and 14 days", "Raise self-directed continuation after 14 days to 0.5, measured and published weekly", "Bring the telling-versus-asking ratio of coach notes below 0.3"],
-  "positioning": "Unlearn is the coach's side of Agora-style learning: coaches nurture, challenge, encourage and guide, and have to unlearn their training as teachers. No curriculum, no grades, no streaks.",
-  "funding": {"routes": [], "individual_eligible_only": true},
-  "social": {"channels": [], "mode": "dry-run"},
-  "runtime": {"provider": "cloudflare"},
-  "repos": {"org": "ultrastable", "names": ["ultrastable"], "canonical": "ultrastable/ultrastable"},
-  "disclosure": {"public_allowed": true, "gate": "none", "safe_now_only": false},
-  "ip": {"has_invention": false, "priority_filed": false, "has_practitioner": false},
-  "budget": {"usd_per_month": 5, "actions_minutes_monthly": 100},
-  "facts": {"has_institution": false}
+  "owner": {
+    "name": "Rowan",
+    "jurisdiction": "NL",
+    "contact_binding": "OWNER_CONTACT",
+    "contact_binding_backup": "OWNER_CONTACT_BACKUP"
+  },
+  "brand": {
+    "public_name": "Unlearn",
+    "tagline": "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them. Run on Ultrastable, the foundation for any autonomous system.",
+    "separate_from": [
+      "Ultrastable",
+      "QNFO",
+      "Practical Solutions"
+    ]
+  },
+  "idea": "An evidence encyclopedia of popular beliefs that the evidence contradicts (crime and justice, children and learning, how minds mislead, health, money and work, society and policy). Each entry starts from why the belief feels true, asks the reader to guess, then shows what the evidence found, where the intuition slips, what works instead and where the belief may still hold, with every source graded by design. An hourly loop resolves each source to a DOI and watches Europe PMC for new reviews, and readers' anonymous guesses and 'did this change your view' taps measure which beliefs surprise and which explanations work. The original coaching companion for adults around curious children stays at /coach.",
+  "goals": [
+    "Keep every entry's evidence checked within 7 days: sources resolved to DOIs and new reviews surfaced on the entry, measured at /api/freshness",
+    "Reach a shift share of at least 0.3: readers who answer saying an entry changed how they see the belief, published at /api/metrics",
+    "Answer every logged curiosity at /coach with a coaching move and follow it up at 7 and 14 days"
+  ],
+  "positioning": "Unlearn is a spin-off of Rutger Bregman's Humankind ('they have to unlearn much of their training'): it helps people unlearn beliefs the evidence contradicts without telling them they are foolish, in the clickable, encyclopedic shape of Practical Solutions. No accounts, no cookies, no grades or streaks.",
+  "funding": {
+    "routes": [],
+    "individual_eligible_only": true
+  },
+  "social": {
+    "channels": [],
+    "mode": "dry-run"
+  },
+  "runtime": {
+    "provider": "cloudflare"
+  },
+  "repos": {
+    "org": "ultrastable",
+    "names": [
+      "ultrastable"
+    ],
+    "canonical": "ultrastable/ultrastable"
+  },
+  "disclosure": {
+    "public_allowed": true,
+    "gate": "none",
+    "safe_now_only": false
+  },
+  "ip": {
+    "has_invention": false,
+    "priority_filed": false,
+    "has_practitioner": false
+  },
+  "budget": {
+    "usd_per_month": 5,
+    "actions_minutes_monthly": 100
+  },
+  "facts": {
+    "has_institution": false
+  }
 }

@@ -1,6 +1,6 @@
 # Instance: Unlearn
 
-**Ultrastable is the foundation for any autonomous system.** Unlearn is a tenant system on it (level 1, parent `ultrastable`). Idea and system test: `IDEA.md`; manifest: `instance.json`.
+**Ultrastable is the foundation for any autonomous system.** Unlearn, an evidence encyclopedia of beliefs to unlearn, is a tenant system on it (level 1, parent `ultrastable`). Idea and system test: `IDEA.md`; manifest: `instance.json`.
 
 A system is autonomous if it has self-referential loops and the ability to close them (`python3 -m foundation loops --verify`).
 
@@ -8,7 +8,24 @@ Ultrastable runs on itself (`python3 -m foundation selfhost`).
 
 > "Most of what kids want to learn, you can't teach them." (Rob, a coach at Agora, in Rutger Bregman, *Humankind*, chapter "Homo Ludens".) The coaches there "nurture and challenge, encourage and guide", and "have to unlearn much of their training as teachers."
 
-## Concept
+## The encyclopedia (unlearn.ultrastable.org)
+
+Unlearn is an evidence encyclopedia of popular beliefs the evidence contradicts, in six topics: crime and justice, children and learning, how minds mislead, health and safety, money and work, society and policy. It is point and click in the shape of Practical Solutions: topic tiles, entry cards with an evidence meter, a play mode (`/play`), search, and a method page (`/how`).
+
+Telling people they are wrong rarely changes a mind, so every entry follows the same guided order, taken from the debunking research (Lewandowsky et al. 2020, Ecker et al. 2022, Wood and Porter 2019): why the belief feels true, the reader's guess, what the evidence shows, where the intuition slips, what works instead, where the belief may still hold, and the sources. Evidence is graded twice: strength (strong, moderate, mixed, limited) and direction (contradicts, mostly contradicts, unsupported, complicates, split).
+
+| Piece | Code |
+|---|---|
+| Entries, grades, topics, method | `worker/entries.js` |
+| Pages (server-rendered, readable without script) | `worker/site.js` |
+| Evidence loop: Crossref DOI resolution (title and year must match), Europe PMC watch for new reviews, freshness, review queue | `worker/evidence.js`, step 5 of the hourly beat in `worker/index.js` |
+| Reader measures: anonymous guess and "did this change your view" counts per entry; surprise and shift shares | `POST /api/guess`, `POST /api/shift`, `/api/metrics` |
+| Data and probes | `/api/entries.json`, `/api/freshness` (503 when an entry is unchecked for 7 days), `/api/leads`, `/api/review-queue.json`, `/sitemap.xml` |
+| Tests | `node --test instances/unlearn/worker/*.test.mjs` |
+
+## The coaching tool (/coach)
+
+### Concept
 
 Play and exploration are learning. Unlearn is not a lesson app. It serves the adult beside a curious child (coach, parent, mentor), because that adult is the one who has to unlearn the reflex to teach.
 
@@ -19,7 +36,7 @@ Play and exploration are learning. Unlearn is not a lesson app. It serves the ad
 
 What it refuses: curricula, grades, streaks, leaderboards, mastery levels. Anything that turns play back into instruction is a defect.
 
-## The loop and its measures (Ultrastable system test)
+### The coaching loop and its measures
 
 | | |
 |---|---|
@@ -31,7 +48,7 @@ What it refuses: curricula, grades, streaks, leaderboards, mastery levels. Anyth
 
 `seed/bootstrap/bootstrap.py --dry-run` on this `IDEA.md` passes stage `qualify` and seeds 3 objectives and 12 metrics (8 liveness, 4 declared awaiting probes).
 
-## Phases: all three audiences, in order
+### Coaching phases: all three audiences, in order
 
 The research behind this ([Homo Ludens, self-directed learning, and AI-facilitated play](https://claude.ai/artifact/9tSXs9RsEVf4xi3Hr4v9kW)) points one way: guided play beats both lecturing and leaving children alone, and unrestricted AI help can hurt. In Bastani et al. 2024 (about 1,000 students), plain GPT-4 raised practice scores 48% and cut unaided exam scores 17%; a hint-only tutor removed the harm. So Unlearn coaches before it builds, and it measures learning that holds without the AI. Data: `phases.json` (11 principles, 3 phases, exit gates), checked by `tests/foundation/test_unlearn.py`.
 
@@ -43,7 +60,7 @@ The research behind this ([Homo Ludens, self-directed learning, and AI-facilitat
 
 **Privacy floor.** The UK Children's Code has 15 standards (best interests, DPIA, data minimisation, default settings, profiling, nudge techniques, parental controls among them). The amended COPPA Rule had a compliance date of 22 April 2026: a published retention policy, a written security program, named third parties, and voice recordings counted as personal information. The Dutch age of digital consent is 16. Phase 3 does not open until each is met, and the controller entity is the one owner-only step (default in effect: phase 3 closed, phases 1 and 2 run).
 
-## Phase 1: built
+### Coaching phase 1: built
 
 `worker/` is the app: one Worker (`ultrastable-unlearn` in `doctrine/topology.json`), one D1 database, one hourly cron, no secrets and no npm dependencies. Tests: `node --test instances/unlearn/worker/*.test.mjs`.
 
