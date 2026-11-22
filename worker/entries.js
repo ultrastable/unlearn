@@ -30,6 +30,7 @@ export const DESIGN = {
   replication: { rank: 4, name: "Multi-lab preregistered replication" },
   trial: { rank: 3, name: "Randomised trial or experiment" },
   observational: { rank: 2, name: "Observational study" },
+  narrative: { rank: 2, name: "Narrative review" },
   survey: { rank: 1, name: "Survey" }
 };
 
@@ -564,6 +565,317 @@ export const ENTRIES = [
       S("Joshi et al.", 2023, "Association between fatal drug overdose and Oregon's decriminalization of possession", "JAMA Psychiatry", "observational", "No association with fatal overdose rates after accounting for the spread of fentanyl.")
     ],
     query: "drug decriminalization use overdose", related: ["housing-first", "harsher-sentences"]
+  },
+  {
+    id: "disaster-panic", cat: "society",
+    belief: "In a disaster, people panic and turn on each other.",
+    feels: "Films and news coverage show stampedes and looting, and we fear that the thin veneer of civilisation cracks under pressure.",
+    guess: { q: "When researchers interviewed survivors of real emergencies, what was the most common behaviour?", options: ["Selfish panic", "Helping strangers", "Freezing alone"], answer: 1 },
+    says: "Studies of real emergencies find that mass panic is rare and that people commonly help each other, including strangers. Survivors describe a shared identity forming in the crowd, which makes helping more likely.",
+    slip: "Panic and looting make vivid stories; ordinary cooperation does not make the news, so we remember the exceptions.",
+    instead: "Plan for disasters by trusting and informing the public, rather than withholding information for fear of panic.",
+    holds: "Crushes do happen in dense crowds, usually from physical pressure and poor exits, not from people turning on each other.",
+    strength: "moderate", direction: "contradicts",
+    sources: [
+      S("Drury, Cocking and Reicher", 2009, "Everyone for themselves? A comparative study of crowd solidarity among emergency survivors", "British Journal of Social Psychology", "observational", "Survivors of emergencies reported more helping than selfish behaviour; a sense of shared identity predicted helping.")
+    ],
+    query: "crowd behaviour emergency panic mass evacuation", related: ["bystander-effect", "stanford-prison"]
+  },
+  {
+    id: "bystander-effect", cat: "society",
+    belief: "In public, bystanders usually stand by and nobody helps.",
+    feels: "The bystander effect is one of the best-known findings in psychology, and the story of people ignoring a crime is often retold.",
+    guess: { q: "In camera footage of real public fights in three countries, how often did at least one bystander intervene?", options: ["About 1 in 10 cases", "About half", "About 9 in 10 cases"], answer: 2 },
+    says: "Analysing camera footage of real public conflicts in three countries, researchers found at least one bystander intervened in about nine in ten cases, and larger groups made intervention more likely, not less.",
+    slip: "Laboratory studies show each person feels less responsible in a group, but in a real crowd that only takes one helper, and more people means more chances of one.",
+    instead: "Expect help and ask for it directly: pointing at one person and asking makes a clear responsibility.",
+    holds: "Each individual in a crowd may be a little less likely to act; it is the group as a whole that usually helps.",
+    strength: "moderate", direction: "contradicts",
+    sources: [
+      S("Philpot, Liebst, Levine, Bernasco and Lindegaard", 2020, "Would I be helped? Cross-national CCTV footage shows that intervention is the norm in public conflicts", "American Psychologist", "observational", "At least one bystander intervened in about 91% of recorded public conflicts, and more bystanders raised the chance of intervention.")
+    ],
+    query: "bystander intervention public conflict", related: ["disaster-panic", "stanford-prison"]
+  },
+  {
+    id: "stanford-prison", cat: "mind",
+    belief: "The Stanford prison experiment shows ordinary people turn cruel when given power.",
+    feels: "The story is told in nearly every introductory psychology course, and it matches what we fear about human nature.",
+    guess: { q: "What did later examination of the experiment's archives show about the guards' behaviour?", options: ["It arose spontaneously", "Guards were coached toward toughness", "Nothing could be learned"], answer: 1 },
+    says: "Archival recordings and interviews show the guards were encouraged by the experimenters to be tough, and some were acting a role. A later prison study run by other researchers did not find guards spontaneously becoming cruel.",
+    slip: "A dramatic study became a parable before its methods were scrutinised.",
+    instead: "Cruelty in institutions is better explained by leadership, identity and instruction than by power alone.",
+    holds: "Situations do shape behaviour; the claim that power alone turns ordinary people cruel is what the evidence does not show.",
+    strength: "moderate", direction: "contradicts",
+    sources: [
+      S("Le Texier", 2019, "Debunking the Stanford Prison Experiment", "American Psychologist", "narrative", "Archival material shows guards were given instructions and expectations about how to behave, undermining the claim of spontaneous cruelty."),
+      S("Reicher and Haslam", 2006, "Rethinking the psychology of tyranny: The BBC prison study", "British Journal of Social Psychology", "trial", "Guards did not spontaneously embrace their role; group identity and leadership shaped what happened.")
+    ],
+    query: "Stanford prison experiment tyranny social identity", related: ["bystander-effect", "disaster-panic"]
+  },
+  {
+    id: "contact-conflict", cat: "society",
+    belief: "Mixing groups that distrust each other only breeds conflict.",
+    feels: "Tension is most visible where groups meet, so keeping them apart seems the way to keep the peace.",
+    guess: { q: "Across more than 500 studies, how did contact between groups relate to prejudice?", options: ["Raised prejudice", "Lowered prejudice", "No relation"], answer: 1 },
+    says: "A meta-analysis of more than 500 studies found that contact between groups typically reduces prejudice, including when ideal conditions are not all met.",
+    slip: "We notice clashes where groups meet and do not see the quiet reduction in suspicion that contact usually brings.",
+    instead: "Create regular, equal-status contact around shared goals: mixed teams, classrooms and neighbourhoods.",
+    holds: "Hostile or forced contact can backfire; the benefit is strongest under cooperation and support from authorities.",
+    strength: "strong", direction: "contradicts",
+    sources: [
+      S("Pettigrew and Tropp", 2006, "A meta-analytic test of intergroup contact theory", "Journal of Personality and Social Psychology", "review", "Across 515 studies, intergroup contact typically reduced intergroup prejudice.")
+    ],
+    query: "intergroup contact prejudice reduction", related: ["immigration-crime", "disaster-panic"]
+  },
+  {
+    id: "more-police", cat: "crime",
+    belief: "Hiring more police officers does not reduce crime.",
+    feels: "Crime has deep causes such as poverty, so more officers can look like treating the symptom.",
+    guess: { q: "In US cities, what did studies find when police numbers rose?", options: ["Crime unchanged", "Crime fell, especially homicide", "Crime rose"], answer: 1 },
+    says: "Studies of US cities find that more police officers reduce crime, especially homicide. The same research finds more arrests for low-level offences, so the gains come with costs that fall unevenly.",
+    slip: "Deep causes and police presence are not either-or: the chance of being caught deters, whatever the underlying causes.",
+    instead: "Weigh both sides: more officers lower serious violence, and how they police decides how many low-level arrests come with it.",
+    holds: "This is about the number of officers, not about any particular tactic such as arrest-led crackdowns (see broken windows).",
+    strength: "moderate", direction: "complicates",
+    sources: [
+      S("Chalfin and McCrary", 2018, "Are U.S. cities underpoliced? Theory and evidence", "Review of Economics and Statistics", "observational", "Additional police reduced crime, with the largest effects on violent crime."),
+      S("Chalfin, Hansen, Weisburst and Williams", 2022, "Police force size and civilian race", "American Economic Review: Insights", "observational", "Each additional officer prevented homicides, with larger reductions for Black victims, and increased arrests for low-level offences.")
+    ],
+    query: "police force size crime", related: ["harsher-sentences", "broken-windows"]
+  },
+  {
+    id: "three-strikes", cat: "crime",
+    belief: "Three-strikes laws are a cost-effective way to cut crime.",
+    feels: "Locking up repeat offenders for long terms sounds like it must stop the people who commit most crime.",
+    guess: { q: "What did studies of California's three-strikes law find?", options: ["Large, cheap crime drop", "Some deterrence at a very high cost per crime avoided", "Crime doubled"], answer: 1 },
+    says: "One study found the law deterred some offending among people with two strikes, but at a very high cost per crime avoided. A book-length analysis found little decline in crime that could be credited to it.",
+    slip: "The people a long sentence keeps inside are often past the age when most offending happens, so each extra year buys less.",
+    instead: "Spend on raising the chance of being caught and on programmes that lower reoffending.",
+    holds: "Some deterrence among eligible offenders appears real; the dispute is about its size and cost.",
+    strength: "mixed", direction: "mixed",
+    sources: [
+      S("Helland and Tabarrok", 2007, "Does three strikes deter? A nonparametric estimation", "Journal of Human Resources", "observational", "Found a deterrent effect on felony arrests among two-strike offenders, at a high cost per crime avoided."),
+      S("Zimring, Hawkins and Kamin", 2001, "Punishment and Democracy: Three Strikes and You're Out in California", "Oxford University Press", "observational", "Found little of California's crime decline attributable to the three-strikes law.")
+    ],
+    query: "three strikes law deterrence crime", related: ["harsher-sentences", "prison-reoffending"]
+  },
+  {
+    id: "mozart-effect", cat: "children",
+    belief: "Listening to Mozart makes children smarter.",
+    feels: "A famous 1993 study reported a boost in spatial reasoning, and music and intelligence both feel like refinement.",
+    guess: { q: "Pooling dozens of studies, how large was the 'Mozart effect' on spatial ability?", options: ["Large and lasting", "Small and short-lived at most", "Negative"], answer: 1 },
+    says: "Meta-analyses find little or no effect of listening to Mozart on spatial ability, and what effect exists is small, brief and seen with other music too. It was never about babies or general intelligence.",
+    slip: "A small, short-lived effect in adults became a product for babies.",
+    instead: "Playing music, singing and making things together with a child are worthwhile for their own sake.",
+    holds: "Learning to play an instrument is a different question from listening to recordings.",
+    strength: "strong", direction: "contradicts",
+    sources: [
+      S("Chabris", 1999, "Prelude or requiem for the 'Mozart effect'?", "Nature", "review", "Pooled studies showed a small effect that could be explained by enjoyment and arousal."),
+      S("Pietschnig, Voracek and Formann", 2010, "Mozart effect-Shmozart effect: A meta-analysis", "Intelligence", "review", "Found little evidence for a specific enhancement of spatial task performance from listening to Mozart.")
+    ],
+    query: "Mozart effect spatial reasoning music listening", related: ["learning-styles", "teach-vs-play"]
+  },
+  {
+    id: "screens-teens", cat: "children",
+    belief: "Smartphones and social media are the main cause of teenage unhappiness.",
+    feels: "Teen distress rose in the same years phones spread, and we can see how absorbed teenagers are.",
+    guess: { q: "In large datasets, how much of the variation in teenage well-being did technology use explain?", options: ["Most of it", "A very small share", "None at all"], answer: 1 },
+    says: "Large analyses find the association between digital technology use and adolescent well-being is negative but very small, explaining well under one percent of the variation. Other researchers argue that heavy social media use, especially for girls, does real harm. The evidence is split on how much.",
+    slip: "Two trends that rise together are easy to link; most of the data is correlational and cannot show which way the effect runs.",
+    instead: "Look at what is displaced (sleep, exercise, time with friends) and at heavy use, rather than total screen time.",
+    holds: "Some studies, particularly on heavy social media use among girls, find larger harms; this entry is graded mixed for that reason.",
+    strength: "mixed", direction: "mixed",
+    sources: [
+      S("Orben and Przybylski", 2019, "The association between adolescent well-being and digital technology use", "Nature Human Behaviour", "observational", "Technology use explained at most 0.4% of the variation in adolescent well-being."),
+      S("Twenge, Joiner, Rogers and Martin", 2018, "Increases in depressive symptoms, suicide-related outcomes, and suicide rates among U.S. adolescents after 2010 and links to increased new media screen time", "Clinical Psychological Science", "observational", "Argued that rising screen time is linked to rising depressive symptoms in US adolescents.")
+    ],
+    query: "adolescent wellbeing digital technology social media use", related: ["growth-mindset", "learning-styles"]
+  },
+  {
+    id: "grade-retention", cat: "children",
+    belief: "Holding struggling children back a year helps them catch up.",
+    feels: "Another year at the same level sounds like a chance to master what was missed.",
+    guess: { q: "Across older studies of grade retention, how did retained children do later?", options: ["Clearly better", "No better, often worse", "Far better"], answer: 1 },
+    says: "A review of decades of studies found retained children did no better, and often worse, than similar promoted children. Some newer studies of early-grade retention with extra support find short-term gains that tend to fade.",
+    slip: "Repeating the same teaching addresses time, not the reason the child struggled.",
+    instead: "Targeted support while moving forward, such as tutoring and teaching at the right level.",
+    holds: "Retention paired with intensive extra support in the earliest grades shows some short-term benefit.",
+    strength: "moderate", direction: "mostly-contradicts",
+    sources: [
+      S("Jimerson", 2001, "Meta-analysis of grade retention research: Implications for practice in the 21st century", "School Psychology Review", "review", "Retention was not associated with better achievement or adjustment compared with matched promoted peers."),
+      S("Schwerdt, West and Winters", 2017, "The effects of test-based retention on student outcomes over time: Regression discontinuity evidence from Florida", "Journal of Public Economics", "observational", "Third-grade retention with support raised short-term achievement, with gains fading over time.")
+    ],
+    query: "grade retention student outcomes", related: ["learning-styles", "study-rereading"]
+  },
+  {
+    id: "peanut-avoidance", cat: "health",
+    belief: "Keeping peanuts away from babies prevents peanut allergy.",
+    feels: "If something can cause a dangerous allergy, keeping a baby away from it seems like the safe choice, and this was once official advice.",
+    guess: { q: "In a randomised trial of high-risk infants, what did eating peanut early do to peanut allergy by age five?", options: ["Raised it", "Lowered it sharply", "No difference"], answer: 1 },
+    says: "In a randomised trial, high-risk infants who ate peanut regularly from early in life were far less likely to have peanut allergy at age five than those who avoided it. Guidelines changed as a result.",
+    slip: "Avoidance seemed protective, but the immune system can learn tolerance from early eating.",
+    instead: "Follow current paediatric guidance on introducing peanut early, especially for babies at high risk, with medical advice where eczema or egg allergy is present.",
+    holds: "For a baby who already has a peanut allergy, avoidance is still right; this is about prevention.",
+    strength: "strong", direction: "contradicts",
+    sources: [
+      S("Du Toit et al.", 2015, "Randomized trial of peanut consumption in infants at risk for peanut allergy", "New England Journal of Medicine", "trial", "Early introduction of peanut sharply reduced peanut allergy at five years among high-risk infants."),
+      S("Togias et al.", 2017, "Addendum guidelines for the prevention of peanut allergy in the United States", "Journal of Allergy and Clinical Immunology", "consensus", "An expert panel convened by the US National Institute of Allergy and Infectious Diseases recommended introducing peanut-containing foods in infancy rather than delaying them.")
+    ],
+    query: "early peanut introduction infant allergy prevention", related: ["vaccines-autism", "antibiotics-colds"]
+  },
+  {
+    id: "left-right-brain", cat: "mind",
+    belief: "People are left-brained (logical) or right-brained (creative).",
+    feels: "The two hemispheres do some different things, and the labels are an easy way to describe personality.",
+    guess: { q: "When researchers scanned more than 1,000 brains, did they find people who were left- or right-brain dominant?", options: ["Yes, clearly", "No", "Only in artists"], answer: 1 },
+    says: "Some functions lean to one hemisphere, such as language to the left in most people, but a large brain-imaging study found no evidence that individuals are left- or right-brain dominant overall.",
+    slip: "Real findings about specific functions were stretched into a personality type.",
+    instead: "Treat logic and creativity as skills anyone can build; both use networks across the whole brain.",
+    holds: "Lateralisation of specific functions is real and well established.",
+    strength: "moderate", direction: "contradicts",
+    sources: [
+      S("Nielsen, Zielinski, Ferguson, Lainhart and Anderson", 2013, "An evaluation of the left-brain vs. right-brain hypothesis with resting state functional connectivity magnetic resonance imaging", "PLoS ONE", "observational", "Found no evidence that individuals have stronger left- or right-hemisphere networks overall.")
+    ],
+    query: "hemispheric lateralization personality left brain right brain", related: ["learning-styles", "memory-video"]
+  },
+  {
+    id: "multitasking", cat: "mind",
+    belief: "Multitasking lets you get more done.",
+    feels: "Switching between tasks feels busy and productive, and heavy multitaskers often feel skilled at it.",
+    guess: { q: "In tests of task switching, how did heavy media multitaskers do compared with light ones?", options: ["Better", "Worse", "The same"], answer: 1 },
+    says: "In experiments, heavy media multitaskers did worse at switching tasks and filtering out distraction. Reviews of later work find the pattern is less consistent, but none find multitaskers do better.",
+    slip: "Feeling busy is not the same as getting more done; each switch costs time and attention.",
+    instead: "Batch similar work and protect blocks of time for one task.",
+    holds: "Doing something automatic, like walking, while thinking is a different case.",
+    strength: "moderate", direction: "mostly-contradicts",
+    sources: [
+      S("Ophir, Nass and Wagner", 2009, "Cognitive control in media multitaskers", "PNAS", "trial", "Heavy media multitaskers performed worse on a test of task switching and were more susceptible to distraction."),
+      S("Uncapher and Wagner", 2018, "Minds and brains of media multitaskers: Current findings and future directions", "PNAS", "review", "Findings are mixed, with a tendency for heavy media multitaskers to perform worse on memory and attention tasks.")
+    ],
+    query: "media multitasking cognitive control", related: ["long-hours", "ego-depletion"]
+  },
+  {
+    id: "opposites-attract", cat: "mind",
+    belief: "Opposites attract.",
+    feels: "Partners often bring different strengths, and couples tell stories about how different they are.",
+    guess: { q: "Across many studies, what predicted attraction better?", options: ["Being different", "Being similar", "Neither"], answer: 1 },
+    says: "A meta-analysis found that actual similarity predicts attraction, especially in early encounters. People also tend to pair with partners similar in age, education and values.",
+    slip: "Differences stand out and make good stories; the many similarities between partners go unnoticed.",
+    instead: "Look for shared values and interests; differences in skills can complement but are not what draws people together.",
+    holds: "In longer relationships, how similar people believe they are matters more than measured similarity.",
+    strength: "moderate", direction: "contradicts",
+    sources: [
+      S("Montoya, Horton and Kirchner", 2008, "Is actual similarity necessary for attraction? A meta-analysis of actual and perceived similarity", "Journal of Social and Personal Relationships", "review", "Actual similarity predicted attraction in no-interaction and short-interaction studies; perceived similarity mattered in existing relationships.")
+    ],
+    query: "similarity attraction meta-analysis", related: ["better-than-average"]
+  },
+  {
+    id: "hot-hand", cat: "mind",
+    belief: "The 'hot hand' in basketball is a myth: streaks are pure chance.",
+    feels: "A famous 1985 study found no hot hand, and it became the textbook example of seeing patterns in randomness.",
+    guess: { q: "When economists re-analysed the original data with a correction for a subtle statistical bias, what did they find?", options: ["Still no hot hand", "Evidence of a modest hot hand", "A huge hot hand"], answer: 1 },
+    says: "A statistical bias in how streaks were measured hid a real effect. Corrected, the original data show evidence of a modest hot hand. This is a case of unlearning a debunking.",
+    slip: "The original method expected the wrong baseline for a random sequence, so randomness looked like it fit.",
+    instead: "Expect modest streakiness in skilled performance, while still being careful about seeing patterns in noise.",
+    holds: "People still overestimate streaks in many settings; the hot hand is real but smaller than fans believe.",
+    strength: "moderate", direction: "contradicts",
+    sources: [
+      S("Gilovich, Vallone and Tversky", 1985, "The hot hand in basketball: On the misperception of random sequences", "Cognitive Psychology", "observational", "Found no evidence that hitting a shot raised the chance of hitting the next."),
+      S("Miller and Sanjurjo", 2018, "Surprised by the hot hand fallacy? A truth in the law of small numbers", "Econometrica", "observational", "Showed a selection bias in streak analysis; correcting it reverses the original conclusion and reveals a hot hand.")
+    ],
+    query: "hot hand fallacy streak shooting", related: ["better-than-average", "money-happiness"]
+  },
+  {
+    id: "knuckle-cracking", cat: "health",
+    belief: "Cracking your knuckles causes arthritis.",
+    feels: "The popping sound seems like damage, and parents and teachers have warned against it for generations.",
+    guess: { q: "In a study comparing habitual knuckle crackers with non-crackers, how did arthritis rates in the hand compare?", options: ["Much higher in crackers", "No clear difference", "Lower in crackers"], answer: 1 },
+    says: "A study comparing people who habitually crack their knuckles with those who do not found no difference in hand osteoarthritis.",
+    slip: "The sound is gas bubbles in the joint fluid, not bone grinding.",
+    instead: "If it is painful or a joint swells, see a clinician; otherwise there is no arthritis reason to stop.",
+    holds: "The evidence base is small, so this is graded limited.",
+    strength: "limited", direction: "contradicts",
+    sources: [
+      S("deWeber, Olszewski and Ortolano", 2011, "Knuckle cracking and hand osteoarthritis", "Journal of the American Board of Family Medicine", "observational", "Habitual knuckle cracking was not associated with hand osteoarthritis.")
+    ],
+    query: "knuckle cracking osteoarthritis", related: ["water-8-glasses"]
+  },
+  {
+    id: "water-8-glasses", cat: "health",
+    belief: "Everyone needs to drink eight glasses of water a day.",
+    feels: "Water is healthy, the rule is easy to remember, and it is repeated everywhere.",
+    guess: { q: "What did a physiologist find when searching for the scientific basis of the eight-glasses rule?", options: ["Strong trial evidence", "No scientific evidence for it", "Evidence for twelve glasses"], answer: 1 },
+    says: "A review of the literature found no scientific evidence for the rule. Healthy people get much of their water from food and other drinks, and thirst regulates intake well.",
+    slip: "A recommendation for total water, much of it from food, was remembered as a rule for drinking water alone.",
+    instead: "Drink when thirsty, more in heat or exercise, and follow medical advice for specific conditions.",
+    holds: "Some people, such as older adults, athletes in heat and people with kidney stones, need to pay closer attention.",
+    strength: "moderate", direction: "unsupported",
+    sources: [
+      S("Valtin", 2002, "\"Drink at least eight glasses of water a day.\" Really? Is there scientific evidence for \"8 x 8\"?", "American Journal of Physiology: Regulatory, Integrative and Comparative Physiology", "narrative", "Found no scientific studies supporting the recommendation for healthy adults in a temperate climate.")
+    ],
+    query: "daily water intake recommendation hydration", related: ["knuckle-cracking", "low-fat-diet"]
+  },
+  {
+    id: "low-fat-diet", cat: "health",
+    belief: "A low-fat diet is the best way to lose weight.",
+    feels: "Fat has the most calories per gram, and low-fat was official advice for decades.",
+    guess: { q: "In a year-long randomised trial of healthy low-fat versus healthy low-carb diets, which lost more weight?", options: ["Low-fat", "No significant difference", "Low-carb, by far"], answer: 1 },
+    says: "A large randomised trial found no significant difference in weight loss after 12 months between healthy low-fat and healthy low-carbohydrate diets.",
+    slip: "One macronutrient got the blame; what mattered more was eating whole foods and eating less overall.",
+    instead: "Pick a healthy eating pattern you can keep up; the label matters less than sticking with it.",
+    holds: "Individuals differ; the trial compares averages.",
+    strength: "strong", direction: "unsupported",
+    sources: [
+      S("Gardner et al.", 2018, "Effect of low-fat vs low-carbohydrate diet on 12-month weight loss in overweight adults and the association with genotype pattern or insulin secretion: The DIETFITS randomized clinical trial", "JAMA", "trial", "No significant difference in 12-month weight loss between healthy low-fat and healthy low-carbohydrate diets."),
+      S("Johnston et al.", 2014, "Comparison of weight loss among named diet programs in overweight and obese adults: a meta-analysis", "JAMA", "review", "Low-carbohydrate and low-fat diets both produced weight loss at 12 months; differences between named diets were small.")
+    ],
+    query: "low-fat low-carbohydrate diet weight loss trial", related: ["water-8-glasses", "stretching-injury"]
+  },
+  {
+    id: "stretching-injury", cat: "health",
+    belief: "Stretching before exercise prevents injuries.",
+    feels: "Warming up feels right, and stretching was taught in every sports class.",
+    guess: { q: "In a large trial of army recruits, how did stretching before exercise change injury risk?", options: ["Cut it sharply", "No meaningful reduction", "Raised it"], answer: 1 },
+    says: "A large trial in army recruits found pre-exercise stretching did not meaningfully reduce injuries. A meta-analysis found stretching showed no clear benefit, while strength training substantially reduced sports injuries.",
+    slip: "Feeling looser is not the same as being protected.",
+    instead: "Strength training and a gradual warm-up into the activity itself.",
+    holds: "Stretching can improve flexibility, which some sports need for performance.",
+    strength: "strong", direction: "unsupported",
+    sources: [
+      S("Pope, Herbert, Kirwan and Graham", 2000, "A randomized trial of preexercise stretching for prevention of lower-limb injury", "Medicine and Science in Sports and Exercise", "trial", "Pre-exercise stretching did not produce a useful reduction in injury risk."),
+      S("Lauersen, Bertelsen and Andersen", 2014, "The effectiveness of exercise interventions to prevent sports injuries: A systematic review and meta-analysis of randomised controlled trials", "British Journal of Sports Medicine", "review", "Stretching showed no beneficial effect; strength training reduced sports injuries.")
+    ],
+    query: "stretching injury prevention exercise", related: ["low-fat-diet"]
+  },
+  {
+    id: "lottery-misery", cat: "money",
+    belief: "Winning the lottery makes people miserable.",
+    feels: "Stories of winners who went broke or fell apart are memorable, and they fit the idea that money cannot buy happiness.",
+    guess: { q: "Years after a large win, how satisfied with life were Swedish lottery winners compared with similar non-winners?", options: ["Less satisfied", "More satisfied", "The same"], answer: 1 },
+    says: "Studies of Swedish lottery players found large winners reported higher life satisfaction for years afterwards, compared with similar players who won less.",
+    slip: "The rare disaster stories are told; the many winners who are simply better off are not news.",
+    instead: "Money improves life satisfaction; see also the entry on money and happiness.",
+    holds: "Effects on day-to-day mood were smaller than on overall life satisfaction.",
+    strength: "moderate", direction: "contradicts",
+    sources: [
+      S("Lindqvist, Östling and Cesarini", 2020, "Long-run effects of lottery wealth on psychological well-being", "Review of Economic Studies", "observational", "Large prizes led to sustained increases in overall life satisfaction among Swedish lottery players.")
+    ],
+    query: "lottery wealth wellbeing life satisfaction", related: ["money-happiness", "cash-transfers"]
+  },
+  {
+    id: "big-bonuses", cat: "money",
+    belief: "The bigger the bonus, the better people perform.",
+    feels: "Incentives work, so larger incentives should work better.",
+    guess: { q: "In experiments where rewards equalled months of pay, what happened on tasks needing skill and concentration?", options: ["Performance rose", "Performance fell", "No change"], answer: 1 },
+    says: "In experiments in India, very large rewards lowered performance on several tasks needing concentration and skill compared with smaller rewards.",
+    slip: "Pressure helps simple effort tasks but can choke performance that needs focus.",
+    instead: "Match incentives to the task: moderate rewards for skilled work, and attention to purpose and conditions.",
+    holds: "For simple, mechanical tasks, higher pay did improve performance in the same study.",
+    strength: "limited", direction: "complicates",
+    sources: [
+      S("Ariely, Gneezy, Loewenstein and Mazar", 2009, "Large stakes and big mistakes", "Review of Economic Studies", "trial", "Very high rewards led to worse performance on several cognitive tasks than moderate rewards.")
+    ],
+    query: "incentive size performance choking", related: ["rewards-motivation", "long-hours"]
   }
 ];
 

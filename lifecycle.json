@@ -7,11 +7,13 @@
    "instances/unlearn/worker/logic.js",
    "instances/unlearn/worker/entries.js",
    "instances/unlearn/worker/evidence.js",
-   "instances/unlearn/worker/site.js"
+   "instances/unlearn/worker/site.js",
+   "instances/unlearn/worker/lab.js"
   ],
   "tests": [
    "instances/unlearn/worker/worker.test.mjs",
-   "instances/unlearn/worker/encyclopedia.test.mjs"
+   "instances/unlearn/worker/encyclopedia.test.mjs",
+   "instances/unlearn/worker/lab.test.mjs"
   ]
  },
  "deploy": {

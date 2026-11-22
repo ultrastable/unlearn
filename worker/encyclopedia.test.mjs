@@ -79,7 +79,7 @@ test('home, topics, entry, play, how, search and sitemap render from the data, w
   assert.match(await (await handle(get('/play'), env)).text(), /Test your intuition/);
   assert.match(await (await handle(get('/how'), env)).text(), /Debunking Handbook/);
   assert.match(await (await handle(get('/search?q=prison'), env)).text(), /href="\/e\/prison-reoffending"/);
-  const sm = await (await handle(get('/sitemap.xml'), env)).text(); assert.equal((sm.match(/<loc>/g) || []).length, 5 + CATEGORIES.length + ENTRIES.length);
+  const sm = await (await handle(get('/sitemap.xml'), env)).text(); assert.equal((sm.match(/<loc>/g) || []).length, 6 + CATEGORIES.length + ENTRIES.length);
   assert.ok(search('sugar').some(x => x.id === 'sugar-hyperactive'));
   const j = await (await handle(get('/api/entries.json'), env)).json(); assert.equal(j.entries.length, ENTRIES.length);
   assert.equal((await (await handle(get('/api/entries/broken-windows.json'), env)).json()).entry.id, 'broken-windows');

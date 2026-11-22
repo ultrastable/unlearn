@@ -44,13 +44,14 @@ export async function resolveSource(src, fetchFn) {
 // Europe PMC: reviews and meta-analyses on the entry's query first published on or after `since` (YYYY-MM-DD).
 export async function findLeads(entry, since, fetchFn) {
   const q = `(${entry.query}) AND (PUB_TYPE:"systematic-review" OR PUB_TYPE:"meta-analysis" OR TITLE:"meta-analysis" OR TITLE:"systematic review") AND FIRST_PDATE:[${since} TO 3000-01-01]`;
-  const url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=lite&pageSize=5&sort=FIRST_PDATE_D%20desc&query=" + encodeURIComponent(q);
+  const url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=core&pageSize=5&sort=FIRST_PDATE_D%20desc&query=" + encodeURIComponent(q);
   const r = await fetchFn(url, { headers: { "user-agent": EVIDENCE.ua, accept: "application/json" } });
   if (!r.ok) throw new Error("europepmc " + r.status);
   const j = await r.json();
   const list = (j && j.resultList && j.resultList.result) || [];
   return list.map(x => ({ ref: x.doi ? "doi:" + String(x.doi).toLowerCase() : x.pmid ? "pmid:" + x.pmid : "epmc:" + x.id, title: String(x.title || "").slice(0, 400),
-    venue: String(x.journalTitle || x.bookOrReportDetails && x.bookOrReportDetails.publisher || "").slice(0, 200), year: Number(x.pubYear) || null,
+    venue: String(x.journalTitle || (x.journalInfo && x.journalInfo.journal && x.journalInfo.journal.title) || "").slice(0, 200), year: Number(x.pubYear) || null,
+    abstract: x.abstractText ? String(x.abstractText).replace(/<[^>]+>/g, " ").slice(0, 4000) : null,
     url: x.doi ? "https://doi.org/" + x.doi : x.pmid ? "https://europepmc.org/article/MED/" + x.pmid : "https://europepmc.org/search?query=" + encodeURIComponent(x.title || "") }))
     // a lead that is already one of the entry's own sources is not new evidence
     .filter(l => !entry.sources.some(s => titleMatch(s.title, l.title) >= 0.8));
@@ -85,7 +86,7 @@ export async function checkEntries(db, now, fetchFn, entries = ENTRIES) {
     try {
       const leads = await findLeads(e, since, fetchFn);
       for (const l of leads) {
-        const r = await db.prepare("INSERT OR IGNORE INTO leads (entry, ref, title, venue, year, url, found) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)").bind(e.id, l.ref, l.title, l.venue, l.year, l.url, now).run();
+        const r = await db.prepare("INSERT OR IGNORE INTO leads (entry, ref, title, venue, year, url, found, abstract) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)").bind(e.id, l.ref, l.title, l.venue, l.year, l.url, now, l.abstract).run();
         out.leads += (r.meta && r.meta.changes) || 0;
       }
     } catch (err) { ok = false; out.errors.push(e.id + " leads: " + (err && err.message)); }
@@ -106,7 +107,9 @@ export function freshness(checked, now, entries = ENTRIES) {
     max_age_hours: EVIDENCE.recheck_days * 24, checked_at: new Date(now).toISOString() };
 }
 
-// Entries whose evidence may have moved: enough unreviewed new reviews since the entry was written.
-export function reviewQueue(leadCounts, entries = ENTRIES) {
-  return entries.filter(e => (leadCounts[e.id] || 0) >= EVIDENCE.review_after_leads).map(e => ({ entry: e.id, new_reviews: leadCounts[e.id], strength: e.strength, direction: e.direction }));
+// Entries whose evidence may have moved: challenged by classified new reviews (lab.js regrade), or holding enough new reviews that no model
+// has classified yet.
+export function reviewQueue(leadCounts, entries = ENTRIES, grades = {}) {
+  return entries.filter(e => (grades[e.id] && grades[e.id].status === "challenged") || (leadCounts[e.id] || 0) >= EVIDENCE.review_after_leads)
+    .map(e => ({ entry: e.id, reason: grades[e.id] && grades[e.id].status === "challenged" ? "challenged" : "unclassified reviews", new_reviews: leadCounts[e.id] || 0, strength: e.strength, direction: e.direction, grade: grades[e.id] || null }));
 }

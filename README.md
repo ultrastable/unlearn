@@ -19,6 +19,7 @@ Telling people they are wrong rarely changes a mind, so every entry follows the 
 | Entries, grades, topics, method | `worker/entries.js` |
 | Pages (server-rendered, readable without script) | `worker/site.js` |
 | Evidence loop: Crossref DOI resolution (title and year must match), Europe PMC watch for new reviews, freshness, review queue | `worker/evidence.js`, step 5 of the hourly beat in `worker/index.js` |
+| Improvement loops (step 6 of the beat): a model labels each new review's abstract against the belief, kept only with a quote that is in the abstract; entries are re-graded automatically (reinforced: one step up; challenged: flagged on the page and queued); daily discovery drafts candidate beliefs from new myth and misconception reviews for `/lab`, where readers vote; wording trials test a re-worded "where the intuition slips" against the original on the shift answers (two-proportion test) and keep the winner | `worker/lab.js`, `labBeat` in `worker/index.js`, `/lab`, `/api/candidates.json`, `/api/grades.json`, `POST /api/candidate-vote` |
 | Reader measures: anonymous guess and "did this change your view" counts per entry; surprise and shift shares | `POST /api/guess`, `POST /api/shift`, `/api/metrics` |
 | Data and probes | `/api/entries.json`, `/api/freshness` (503 when an entry is unchecked for 7 days), `/api/leads`, `/api/review-queue.json`, `/sitemap.xml` |
 | Tests | `node --test instances/unlearn/worker/*.test.mjs` |

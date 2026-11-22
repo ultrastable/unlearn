@@ -12,7 +12,8 @@ import MODELS from "../../../doctrine/models.json" with { type: "json" };
 import { page } from "./page.js";
 import { ENTRIES, CATEGORIES } from "./entries.js";
 import { checkEntries, freshness, reviewQueue } from "./evidence.js";
-import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound } from "./site.js";
+import { LAB, triagePrompt, checkTriage, regrade, discover, draftPrompt, checkDraft, variantPrompt, checkVariant, decide, pickForVariant } from "./lab.js";
+import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage } from "./site.js";
 
 const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS explorations (id TEXT PRIMARY KEY, token TEXT UNIQUE NOT NULL, created INTEGER NOT NULL, topic TEXT NOT NULL, age TEXT, move_id TEXT NOT NULL, move_text TEXT NOT NULL, reworded INTEGER NOT NULL DEFAULT 0, f7 INTEGER, f14 INTEGER, adult TEXT, grp TEXT, pseudonym TEXT)",
@@ -27,11 +28,15 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS sources (key TEXT PRIMARY KEY, entry TEXT NOT NULL, doi TEXT, found_title TEXT, tried INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY AUTOINCREMENT, entry TEXT NOT NULL, ref TEXT NOT NULL, title TEXT, venue TEXT, year INTEGER, url TEXT, found INTEGER NOT NULL, reviewed INTEGER NOT NULL DEFAULT 0, UNIQUE(entry, ref))",
   "CREATE TABLE IF NOT EXISTS evidence_checks (entry TEXT PRIMARY KEY, at INTEGER NOT NULL)",
-  "CREATE TABLE IF NOT EXISTS reader_counts (entry TEXT NOT NULL, key TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (entry, key))"
+  "CREATE TABLE IF NOT EXISTS reader_counts (entry TEXT NOT NULL, key TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (entry, key))",
+  // lab.js: candidate beliefs found in new reviews (drafted from the abstract only), and wording trials for explanations
+  "CREATE TABLE IF NOT EXISTS candidates (id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT UNIQUE NOT NULL, title TEXT, venue TEXT, year INTEGER, url TEXT, abstract TEXT, found INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'new', draft TEXT, why TEXT, yes INTEGER NOT NULL DEFAULT 0, no INTEGER NOT NULL DEFAULT 0)",
+  "CREATE TABLE IF NOT EXISTS variants (id INTEGER PRIMARY KEY AUTOINCREMENT, entry TEXT NOT NULL, field TEXT NOT NULL, arm TEXT NOT NULL, text TEXT, created INTEGER NOT NULL, status TEXT NOT NULL, yes INTEGER NOT NULL DEFAULT 0, total INTEGER NOT NULL DEFAULT 0, decided INTEGER)"
 ];
 // Columns added after the first deploy. SQLite has no ADD COLUMN IF NOT EXISTS, so a duplicate-column error means already applied;
 // any other error is thrown (never swallowed).
-const COLUMNS = ["ALTER TABLE explorations ADD COLUMN led TEXT"];
+const COLUMNS = ["ALTER TABLE explorations ADD COLUMN led TEXT", "ALTER TABLE leads ADD COLUMN abstract TEXT", "ALTER TABLE leads ADD COLUMN stance TEXT",
+  "ALTER TABLE leads ADD COLUMN quote TEXT", "ALTER TABLE leads ADD COLUMN classified INTEGER"];
 async function addColumns(db) {
   for (const sql of COLUMNS) {
     try { await db.prepare(sql).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
@@ -136,7 +141,106 @@ export async function encyclopediaMetrics(db, now = Date.now()) {
   const surprising = Object.entries(per).filter(([, v]) => v.g >= 5).map(([entry, v]) => ({ entry, surprise: v.w / v.g, guesses: v.g })).sort((a, b) => b.surprise - a.surprise).slice(0, 6);
   return { entries: ENTRIES.length, categories: CATEGORIES.length, sources_total, sources_resolved: (src && src.d) || 0, leads: (leads && leads.n) || 0,
     entries_fresh: fresh.checked, evidence_fresh_share: fresh.checked / fresh.entries, guesses, surprise_share: guesses ? wrong / guesses : null,
-    shift_answers: shiftAll, shift_share: shiftAll ? shiftYes / shiftAll : null, surprising };
+    shift_answers: shiftAll, shift_share: shiftAll ? shiftYes / shiftAll : null, surprising, lab: await labMetrics(db) };
+}
+export async function labMetrics(db) {
+  const g = Object.values(await grades(db));
+  const cl = await db.prepare("SELECT COUNT(*) n FROM leads WHERE stance IS NOT NULL").first();
+  const cand = (await db.prepare("SELECT status, COUNT(*) n FROM candidates GROUP BY status").all()).results || [];
+  const vr = (await db.prepare("SELECT status, COUNT(*) n FROM variants WHERE arm='challenger' GROUP BY status").all()).results || [];
+  const by = (rows) => Object.fromEntries(rows.map(r => [r.status, r.n]));
+  return { reviews_classified: (cl && cl.n) || 0, entries_reinforced: g.filter(x => x.status === "reinforced").length, entries_challenged: g.filter(x => x.status === "challenged").length,
+    candidates: by(cand), wording_trials: by(vr) };
+}
+
+// A model call for the lab loops: same daily cap and model order as re-wording; any failure returns null and the loop moves on.
+async function ask(env, db, messages, max_tokens = 300) {
+  if (!env.AI || env.AI_OFF === "1") return null;
+  if ((await bump(db, "ai_calls")) > Number(env.AI_DAILY_CAP || LIMITS.ai_calls_day)) return null;
+  for (const model of modelOrder()) {
+    try {
+      const r = await env.AI.run(model, { messages, max_tokens });
+      return typeof r === "string" ? r : (r && (r.response ?? (r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content))) || "";
+    } catch (e) { await bump(db, "ai_error:" + model); console.error("unlearn lab ai", model, e && e.message); }
+  }
+  return null;
+}
+// Current grade of every entry, from the reviews the triage step classified (lab.js regrade).
+export async function grades(db) {
+  const rows = (await db.prepare("SELECT entry, stance FROM leads WHERE stance IS NOT NULL AND stance != 'unrelated'").all()).results || [];
+  const by = {}; for (const r of rows) (by[r.entry] = by[r.entry] || []).push(r);
+  return Object.fromEntries(ENTRIES.map(e => [e.id, regrade(e, by[e.id] || [])]));
+}
+// The wording an entry shows now: a promoted winner, or one arm of a running trial chosen at random per view.
+export async function wording(db, entryId, rnd = Math.random) {
+  const rows = (await db.prepare("SELECT id, arm, text, status FROM variants WHERE entry=?1 AND status IN ('trial','winner') ORDER BY id DESC").bind(entryId).all()).results || [];
+  const win = rows.find(r => r.status === "winner" && r.text);
+  const trial = rows.filter(r => r.status === "trial");
+  if (trial.length === 2) { const pick = trial[rnd() < 0.5 ? 0 : 1]; return { variant: pick.id, slip: pick.text || (win && win.text) || null }; }
+  return { variant: null, slip: win ? win.text : null };
+}
+
+// The lab beat: triage new reviews, discover candidate beliefs, run and decide wording trials. Each part logs its own failure.
+export async function labBeat(env, db, now, fetchFn) {
+  const out = { triaged: 0, refused: 0, discovered: 0, drafted: 0, trial: null, errors: [] };
+  // 1. triage: classify unclassified leads that have an abstract
+  const todo = (await db.prepare("SELECT id, entry, title, abstract FROM leads WHERE classified IS NULL AND abstract IS NOT NULL ORDER BY found LIMIT ?1").bind(LAB.triage_per_beat).all()).results || [];
+  for (const l of todo) {
+    const e = byId[l.entry]; if (!e) continue;
+    const text = await ask(env, db, triagePrompt(e, l), 200); if (text === null) break;
+    const c = checkTriage(text, l.abstract);
+    if (c.ok) { await db.prepare("UPDATE leads SET stance=?1, quote=?2, classified=?3, reviewed=?4 WHERE id=?5").bind(c.stance, c.quote, now, c.stance === "unrelated" ? 1 : 0, l.id).run(); out.triaged++; }
+    else { await db.prepare("UPDATE leads SET classified=?1 WHERE id=?2").bind(now, l.id).run(); await bump(db, "lab_refused"); out.refused++; }
+  }
+  // 2. discover once a day, then draft candidates from their abstract alone
+  if (fetchFn) {
+    const last = await getState(db, "last_discover", 0);
+    if (now - last >= LAB.discover_every_hours * 3600000) {
+      try {
+        const since = new Date(last || Date.UTC(2025, 0, 1)).toISOString().slice(0, 10);
+        for (const c of await discover(since, fetchFn)) {
+          const r = await db.prepare("INSERT OR IGNORE INTO candidates (ref, title, venue, year, url, abstract, found) VALUES (?1,?2,?3,?4,?5,?6,?7)").bind(c.ref, c.title, c.venue, c.year, c.url, c.abstract, now).run();
+          out.discovered += (r.meta && r.meta.changes) || 0;
+        }
+        await setState(db, "last_discover", now);
+      } catch (e) { out.errors.push("discover: " + (e && e.message)); }
+    }
+  }
+  const fresh = (await db.prepare("SELECT id, title, abstract FROM candidates WHERE status='new' ORDER BY found LIMIT ?1").bind(LAB.drafts_per_beat).all()).results || [];
+  for (const c of fresh) {
+    const text = await ask(env, db, draftPrompt(c), 300); if (text === null) break;
+    const d = checkDraft(text, c);
+    await db.prepare("UPDATE candidates SET status=?1, draft=?2, why=?3 WHERE id=?4").bind(d.ok ? "drafted" : "rejected", d.ok ? JSON.stringify(d.draft) : null, d.ok ? null : d.why, c.id).run();
+    if (d.ok) out.drafted++;
+  }
+  // 3. wording trials: decide the running one, or start one for the entry whose explanation shifts fewest views
+  const running = (await db.prepare("SELECT * FROM variants WHERE status='trial' ORDER BY id").all()).results || [];
+  if (running.length === 2) {
+    const [control, challenger] = running[0].arm === "control" ? running : [running[1], running[0]];
+    const d = decide(control, challenger);
+    if (d !== "running") {
+      await db.prepare("UPDATE variants SET status=?1, decided=?2 WHERE id=?3").bind(d === "challenger" ? "winner" : "retired", now, challenger.id).run();
+      await db.prepare("UPDATE variants SET status='retired', decided=?1 WHERE id=?2").bind(now, control.id).run();
+      if (d === "challenger") await db.prepare("UPDATE variants SET status='retired' WHERE entry=?1 AND status='winner' AND id != ?2").bind(challenger.entry, challenger.id).run();
+      out.trial = { entry: control.entry, decided: d };
+    } else out.trial = { entry: control.entry, decided: "running", control: control.total, challenger: challenger.total };
+  } else if (!running.length) {
+    const rc = (await db.prepare("SELECT entry, key, n FROM reader_counts WHERE key LIKE 'shift:%'").all()).results || [];
+    const shift = {}; for (const r of rc) { const s = shift[r.entry] = shift[r.entry] || { yes: 0, total: 0 }; s.total += r.n; if (r.key !== "shift:no") s.yes += r.n; }
+    const tried = new Set((((await db.prepare("SELECT DISTINCT entry FROM variants WHERE created > ?1").bind(now - 30 * 86400000).all()).results) || []).map(r => r.entry));
+    const e = pickForVariant(shift, tried);
+    if (e) {
+      const text = await ask(env, db, variantPrompt(e), 200);
+      const v = text === null ? { ok: false, why: "no model" } : checkVariant(text, e);
+      if (v.ok) {
+        const cur = await wording(db, e.id);
+        await db.prepare("INSERT INTO variants (entry, field, arm, text, created, status) VALUES (?1, 'slip', 'control', ?2, ?3, 'trial')").bind(e.id, cur.slip, now).run();
+        await db.prepare("INSERT INTO variants (entry, field, arm, text, created, status) VALUES (?1, 'slip', 'challenger', ?2, ?3, 'trial')").bind(e.id, v.text, now).run();
+        out.trial = { entry: e.id, started: true };
+      } else if (text !== null) { await bump(db, "lab_refused"); out.refused++; }
+    }
+  }
+  return out;
 }
 
 // The hourly beat: the loop that closes itself.
@@ -171,6 +275,12 @@ export async function beat(env, now = Date.now()) {
       for (const x of ev.errors) console.error("unlearn evidence", x);
     } catch (e) { m.evidence = { error: String(e && e.message || e) }; console.error("unlearn evidence", m.evidence.error); }
   }
+  // 6. the lab loops (lab.js): triage new reviews, discover candidate beliefs, decide wording trials
+  try {
+    const lab = await labBeat(env, db, now, f);
+    m.lab = { ...lab, errors: lab.errors.length };
+    for (const x of lab.errors) console.error("unlearn lab", x);
+  } catch (e) { m.lab = { error: String(e && e.message || e) }; console.error("unlearn lab", m.lab.error); }
   await db.prepare("INSERT INTO beats (at, started_at, phase, metrics, pruned, error) VALUES (?1, ?2, ?3, ?4, ?5, ?6)").bind(now, new Date(now).toISOString(), phase, JSON.stringify(m), pruned, err).run();
   return { ok: !err, phase, metrics: m, pruned, error: err };
 }
@@ -205,17 +315,28 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     const ran = await catchUp(env, null, now); return J({ ok: true, ran });
   }
   if (u.pathname === "/health") { const h = await health(env, now); return J(h, h.ok ? 200 : 503); }
-  const html = (h, s = 200) => new Response(h, { status: s, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
+  const html = (h, s = 200, live = false) => new Response(h, { status: s, headers: { "content-type": "text/html; charset=utf-8", "cache-control": live ? "no-store" : "public, max-age=300" } });
   if (req.method === "GET" || req.method === "HEAD") {
     const p = u.pathname.replace(/\/+$/, "") || "/";
-    if (p === "/" || p === "/index.html") { await catchUp(env, ctx, now); const m = await encyclopediaMetrics(db, now); return html(home({ stats: m, surprising: m.surprising })); }
-    if (p === "/topics") return html(topics());
-    if (p.startsWith("/topics/")) { const h = topic(p.slice(8)); if (h) return html(h); }
+    if (p === "/" || p === "/index.html") { await catchUp(env, ctx, now); const m = await encyclopediaMetrics(db, now); return html(home({ stats: m, surprising: m.surprising, grades: await grades(db) })); }
+    if (p === "/topics") return html(topics(await grades(db)));
+    if (p.startsWith("/topics/")) { const h = topic(p.slice(8), await grades(db)); if (h) return html(h); }
+    if (p === "/lab") {
+      const rows = (await db.prepare("SELECT id, title, venue, year, url, draft, yes, no, found FROM candidates WHERE status='drafted' ORDER BY (yes - no) DESC, found DESC LIMIT 40").all()).results || [];
+      const trials = (await db.prepare("SELECT entry, arm, text, status, yes, total, decided FROM variants ORDER BY id DESC LIMIT 20").all()).results || [];
+      return html(labPage({ candidates: rows.map(r => ({ ...r, draft: JSON.parse(r.draft) })), trials, metrics: await labMetrics(db) }), 200, true);
+    }
+    if (p === "/api/candidates.json") {
+      const rows = (await db.prepare("SELECT id, ref, title, venue, year, url, status, draft, why, yes, no, found FROM candidates ORDER BY found DESC LIMIT 200").all()).results || [];
+      return J({ ok: true, candidates: rows.map(r => ({ ...r, draft: r.draft ? JSON.parse(r.draft) : null })) });
+    }
+    if (p === "/api/grades.json") return J({ ok: true, grades: await grades(db) });
     if (p.startsWith("/e/")) {
       const e = byId[p.slice(3)];
       if (e) {
-        const leads = (await db.prepare("SELECT title, venue, year, url FROM leads WHERE entry=?1 AND reviewed=0 ORDER BY found DESC LIMIT 8").bind(e.id).all()).results || [];
-        return html(entryPage(e, { dois: await doiMap(db, e.id), leads, counts: await readerCounts(db, e.id) }));
+        const leads = (await db.prepare("SELECT title, venue, year, url, stance, quote FROM leads WHERE entry=?1 AND reviewed=0 ORDER BY found DESC LIMIT 8").bind(e.id).all()).results || [];
+        const g = (await grades(db))[e.id], w = await wording(db, e.id);
+        return html(entryPage(e, { dois: await doiMap(db, e.id), leads, counts: await readerCounts(db, e.id), grade: g, slip: w.slip, variant: w.variant }), 200, true);
       }
     }
     if (p === "/search") return html(searchPage(u.searchParams.get("q") || ""));
@@ -233,7 +354,8 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     if (p === "/api/leads") return J({ ok: true, leads: (await db.prepare("SELECT entry, ref, title, venue, year, url, found FROM leads WHERE reviewed=0 ORDER BY found DESC LIMIT 200").all()).results || [] });
     if (p === "/api/review-queue.json") {
       const rows = (await db.prepare("SELECT entry, COUNT(*) n FROM leads WHERE reviewed=0 GROUP BY entry").all()).results || [];
-      return J({ ok: true, queue: reviewQueue(Object.fromEntries(rows.map(r => [r.entry, r.n]))) });
+      const unclassified = (await db.prepare("SELECT entry, COUNT(*) n FROM leads WHERE reviewed=0 AND stance IS NULL GROUP BY entry").all()).results || [];
+      return J({ ok: true, queue: reviewQueue(Object.fromEntries(unclassified.map(r => [r.entry, r.n])), ENTRIES, await grades(db)) });
     }
   }
   if (u.pathname === "/api/guess" && req.method === "POST") {
@@ -248,7 +370,15 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     if (!e || !["yes", "some", "no"].includes(b.shift)) return say("bad", "Choose yes, a little, or no.");
     if (!(await allowTap(db, req))) return J({ ok: true, counted: false });
     await db.prepare("INSERT INTO reader_counts (entry, key, n) VALUES (?1, ?2, 1) ON CONFLICT(entry, key) DO UPDATE SET n = n + 1").bind(e.id, "shift:" + b.shift).run();
+    if (Number.isInteger(b.variant)) await db.prepare("UPDATE variants SET total = total + 1, yes = yes + ?1 WHERE id=?2 AND entry=?3 AND status='trial'").bind(b.shift === "no" ? 0 : 1, b.variant, e.id).run();
     return J({ ok: true, counted: true });
+  }
+  if (u.pathname === "/api/candidate-vote" && req.method === "POST") {
+    const b = await body(req); const id = b && Number(b.id);
+    if (!Number.isInteger(id) || !["yes", "no"].includes(b.vote)) return say("bad", "Choose yes or no.");
+    if (!(await allowTap(db, req))) return J({ ok: true, counted: false });
+    const r = await db.prepare(`UPDATE candidates SET ${b.vote === "yes" ? "yes = yes + 1" : "no = no + 1"} WHERE id=?1 AND status='drafted'`).bind(id).run();
+    return (r.meta && r.meta.changes) ? J({ ok: true, counted: true }) : say("unknown", "That draft is no longer open.", 404);
   }
   if (u.pathname === "/coach" || u.pathname === "/coach/") {
     await catchUp(env, ctx, now);
