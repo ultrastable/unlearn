@@ -40,7 +40,8 @@ export const CATEGORIES = [
   { id: "mind", name: "How minds mislead", blurb: "Memory, willpower, anger and the biases that feel like common sense.", hue: 265 },
   { id: "health", name: "Health and safety", blurb: "Beliefs about protection and prevention that the data does not back.", hue: 200 },
   { id: "money", name: "Money, work and welfare", blurb: "Cash, wages, hours and happiness.", hue: 40 },
-  { id: "society", name: "Society and policy", blurb: "Migration, housing and drugs: where policy beliefs meet data.", hue: 320 }
+  { id: "society", name: "Society and policy", blurb: "Migration, housing and drugs: where policy beliefs meet data.", hue: 320 },
+  { id: "retold", name: "Famous findings, retold", blurb: "Landmark studies and famous stories that later evidence overturned or recast.", hue: 95 }
 ];
 
 // The guided order every entry follows. It applies the debunking research cited on /how: lead with why the belief is reasonable,
@@ -597,7 +598,8 @@ export const ENTRIES = [
     query: "bystander intervention public conflict", related: ["disaster-panic", "stanford-prison"]
   },
   {
-    id: "stanford-prison", cat: "mind",
+    id: "stanford-prison", cat: "retold",
+    classic: { then: "1971: Zimbardo's prison experiment becomes the textbook proof that power corrupts", now: "2019: the archives show the guards were coached to be tough" },
     belief: "The Stanford prison experiment shows ordinary people turn cruel when given power.",
     feels: "The story is told in nearly every introductory psychology course, and it matches what we fear about human nature.",
     guess: { q: "What did later examination of the experiment's archives show about the guards' behaviour?", options: ["It arose spontaneously", "Guards were coached toward toughness", "Nothing could be learned"], answer: 1 },
@@ -610,7 +612,7 @@ export const ENTRIES = [
       S("Le Texier", 2019, "Debunking the Stanford Prison Experiment", "American Psychologist", "narrative", "Archival material shows guards were given instructions and expectations about how to behave, undermining the claim of spontaneous cruelty."),
       S("Reicher and Haslam", 2006, "Rethinking the psychology of tyranny: The BBC prison study", "British Journal of Social Psychology", "trial", "Guards did not spontaneously embrace their role; group identity and leadership shaped what happened.")
     ],
-    query: "Stanford prison experiment tyranny social identity", related: ["bystander-effect", "disaster-panic"]
+    query: "Stanford prison experiment tyranny social identity", related: ["milgram-obedience", "lord-of-the-flies", "kitty-genovese"]
   },
   {
     id: "contact-conflict", cat: "society",
@@ -876,6 +878,177 @@ export const ENTRIES = [
       S("Ariely, Gneezy, Loewenstein and Mazar", 2009, "Large stakes and big mistakes", "Review of Economic Studies", "trial", "Very high rewards led to worse performance on several cognitive tasks than moderate rewards.")
     ],
     query: "incentive size performance choking", related: ["rewards-motivation", "long-hours"]
+  },
+  {
+    id: "milgram-obedience", cat: "retold",
+    classic: { then: "1963: Milgram's shock experiments seem to show most people will hurt a stranger on command", now: "2010s: archives and re-analyses show obedience varied widely and direct orders were often refused" },
+    belief: "Milgram proved that most people will blindly hurt a stranger if an authority tells them to.",
+    feels: "The footage is unforgettable, the headline number (most participants went to the highest switch) is quoted everywhere, and it seemed to explain how ordinary people took part in atrocities.",
+    guess: { q: "In a re-run of Milgram's procedure, when did people keep going: when given a direct order, or when told the work mattered for science?", options: ["When given a direct order", "When told it mattered for science", "Nobody kept going in either case"], answer: 1 },
+    says: "Obedience swung widely across Milgram's own variations, from most people to very few. Archival work found many participants doubted the shocks were real. In a later analogue, people went on when told the research needed it, and tended to refuse when simply ordered. A partial replication that stopped at a lower level found willingness to continue similar to Milgram's.",
+    slip: "One condition of many became the whole story, and \"obeying orders\" was read into behaviour that looks more like believing in the cause.",
+    instead: "Ask what people believe they are contributing to. Harm is easier to prevent by challenging the cause than by assuming people are sheep.",
+    holds: "People do defer to authority to a worrying degree, and the partial replication shows it is not just a product of the 1960s. What the evidence undercuts is \"blind\" obedience to orders.",
+    strength: "moderate", direction: "complicates",
+    sources: [
+      S("Burger", 2009, "Replicating Milgram: Would people still obey today?", "American Psychologist", "replication", "A partial replication stopping at 150 volts found rates of continuing similar to Milgram's comparable condition."),
+      S("Haslam, Reicher and Birney", 2014, "Nothing by mere authority: Evidence that in an experimental analogue of the Milgram paradigm participants are motivated not by orders but by appeals to science", "Journal of Social Issues", "trial", "Participants continued in response to appeals to the scientific goal, and the prod that was a direct order tended to produce refusal."),
+      S("Haslam and Reicher", 2012, "Contesting the nature of conformity: What Milgram and Zimbardo's studies really show", "PLoS Biology", "narrative", "Argues both classics show engaged followership with a cause, not passive conformity to orders.")
+    ],
+    query: "Milgram obedience authority replication", related: ["stanford-prison", "kitty-genovese", "lord-of-the-flies"]
+  },
+  {
+    id: "kitty-genovese", cat: "retold",
+    classic: { then: "1964: a newspaper reports that 38 neighbours watched Kitty Genovese's murder and did nothing", now: "2007: later research finds few saw the attack, and some did call the police" },
+    belief: "Thirty-eight neighbours watched Kitty Genovese being murdered and did nothing.",
+    feels: "The story ran on the front page, launched decades of research on bystanders, and became shorthand for city people's indifference.",
+    guess: { q: "What did later investigation find about the \"38 witnesses\"?", options: ["The number was accurate", "Few people saw the attack, and some called the police", "Nobody heard anything at all"], answer: 1 },
+    says: "Later research found no good evidence for 38 eyewitnesses: few people saw any part of the attack, and at least one person called the police. The story became a parable about apathy, and that parable shaped how psychology studied helping for decades.",
+    slip: "A shocking number gave a moral to a tragedy, and the moral outlived the facts.",
+    instead: "Expect people to help: video studies of real street conflicts find intervention is the norm, so the task is to make helping easier.",
+    holds: "People can hold back when responsibility is unclear; the evidence argues against the claim that crowds simply watch.",
+    strength: "moderate", direction: "contradicts",
+    sources: [
+      S("Manning, Levine and Collins", 2007, "The Kitty Genovese murder and the social psychology of helping: The parable of the 38 witnesses", "American Psychologist", "narrative", "The evidence does not support the claim of 38 eyewitnesses who did nothing; the story functioned as a parable that shaped research."),
+      S("Philpot, Liebst, Levine, Bernasco and Lindegaard", 2020, "Would I be helped? Cross-national CCTV footage shows that intervention is the norm in public conflicts", "American Psychologist", "observational", "In public conflicts filmed in three countries, at least one bystander intervened in the large majority of cases.")
+    ],
+    query: "bystander intervention Kitty Genovese helping", related: ["bystander-effect", "milgram-obedience", "disaster-panic"]
+  },
+  {
+    id: "lord-of-the-flies", cat: "retold",
+    classic: { then: "1954: Golding's novel tells of stranded boys turning savage, and is taught as a lesson about human nature", now: "1965: six real boys stranded on an island cooperated for more than a year" },
+    belief: "Left alone, children turn on each other, just as in Lord of the Flies.",
+    feels: "The novel is read in schools around the world and feels like an honest look at what lies under civilisation.",
+    guess: { q: "In 1965, six Tongan boys were stranded on an uninhabited island for more than a year. What happened?", options: ["They split into gangs and fought", "They cooperated, kept a fire going and nursed an injured boy", "They did not survive"], answer: 1 },
+    says: "When six boys were really shipwrecked on 'Ata, they shared work in shifts, kept a fire burning, settled quarrels by separating for a while, and looked after a boy who broke his leg until they were rescued.",
+    slip: "A novel is a thought experiment, not evidence, but a vivid story is remembered like a fact.",
+    instead: "Treat fiction about human nature as a question to test. Where groups do turn cruel, look for the conditions that made it so.",
+    holds: "One real case is an anecdote, not a study, and children can and do bully each other. What fails is the use of a novel as proof of what people are like.",
+    strength: "limited", direction: "contradicts",
+    sources: [
+      S("Bregman", 2020, "Humankind: A Hopeful History", "Bloomsbury", "narrative", "Recounts the 1965 'Ata castaways, drawn from interviews with the survivors and their rescuer, as a real counterpart to the novel.")
+    ],
+    query: "children cooperation group conflict human nature", related: ["stanford-prison", "disaster-panic", "contact-conflict"]
+  },
+  {
+    id: "easter-island", cat: "retold",
+    classic: { then: "2005: Easter Island becomes the famous example of a society that destroyed itself by cutting down its trees", now: "2020 to 2024: dating, farming surveys and ancient DNA find no collapse before Europeans arrived" },
+    belief: "Easter Islanders cut down all their trees and destroyed their own society.",
+    feels: "Giant statues on a bare island make a haunting picture, and the story works as a warning about our own planet.",
+    guess: { q: "What do recent studies say about Rapa Nui's population before Europeans arrived?", options: ["It crashed from self-inflicted collapse", "It stayed small and stable, with no sign of a crash", "It grew tenfold"], answer: 1 },
+    says: "Models built on radiocarbon dates find no sign of a population crash before European contact. A survey of the island's rock gardens suggests the farmland could feed only a few thousand people, so there was never a huge population to collapse, and ancient genomes show no sign of a population crash in that period. The catastrophe came after contact, with disease and slave raids.",
+    slip: "The island lost its forest, and a tidy moral was drawn from that before the people's own history was checked.",
+    instead: "Look for how people adapted to a hard place: the islanders kept farming with rock gardens for centuries.",
+    holds: "The forest really was lost, and human activity and introduced rats played a part. The dispute is about whether this caused a social collapse.",
+    strength: "moderate", direction: "mostly-contradicts",
+    sources: [
+      S("DiNapoli, Rieth, Lipo and Hunt", 2020, "A model-based approach to the tempo of collapse: The case of Rapa Nui (Easter Island)", "Nature Communications", "observational", "Radiocarbon-based modelling shows no population decline before European contact."),
+      S("Davis et al.", 2024, "Island-wide characterization of agricultural production challenges the demographic collapse hypothesis for Rapa Nui (Easter Island)", "Science Advances", "observational", "Rock garden farmland mapped by satellite could support a population of a few thousand, far below earlier estimates."),
+      S("Moreno-Mayar et al.", 2024, "Ancient Rapanui genomes reveal resilience and pre-European contact with the Americas", "Nature", "observational", "Genomes of past islanders show no genetic bottleneck that a population collapse would leave.")
+    ],
+    query: "Rapa Nui Easter Island population collapse", related: ["disaster-panic", "lord-of-the-flies", "stanford-prison"]
+  },
+  {
+    id: "marshmallow-test", cat: "retold",
+    classic: { then: "1990: children who waited for a second marshmallow seem to do better as teenagers", now: "2018: a larger, more varied study finds the link much weaker once family background is counted" },
+    belief: "A child's ability to wait for a second marshmallow predicts how well they will do in life.",
+    feels: "It is a charming test with a big promise: a few minutes at age four tell you about someone's future.",
+    guess: { q: "In a larger study with more varied families, how much did waiting at age four predict achievement at fifteen once family background was taken into account?", options: ["As strongly as the original", "Much less", "It was never measured"], answer: 1 },
+    says: "In a conceptual replication with children from more varied backgrounds, the link between waiting and later achievement was about half the original size, and became much smaller once family background and early abilities were taken into account. Other work shows children wait longer when the adults around them have kept their promises.",
+    slip: "The original children were mostly from one university community, so a test of circumstances looked like a test of character.",
+    instead: "Build children's trust that waiting pays off, by keeping promises, rather than drilling willpower.",
+    holds: "Self-control does matter; the test measures it mixed with a child's circumstances, which is why the link shrinks.",
+    strength: "moderate", direction: "complicates",
+    sources: [
+      S("Watts, Duncan and Quan", 2018, "Revisiting the marshmallow test: A conceptual replication investigating links between early delay of gratification and later outcomes", "Psychological Science", "replication", "The association with age-15 achievement was about half the original estimate and much smaller after controls for background and early ability."),
+      S("Kidd, Palmeri and Aslin", 2013, "Rational snacking: Young children's decision-making on the marshmallow task is moderated by beliefs about environmental reliability", "Cognition", "trial", "Children who had just seen an adult break a promise waited much less than children who had seen the adult keep it.")
+    ],
+    query: "delay of gratification marshmallow later outcomes", related: ["growth-mindset", "rewards-motivation", "pygmalion-effect"]
+  },
+  {
+    id: "hawthorne-effect", cat: "retold",
+    classic: { then: "1920s: factory lighting studies seem to show workers do better whenever anything changes, because they are watched", now: "2011: the original data, found and re-analysed, show no clear sign of that effect" },
+    belief: "Workers do better simply because they are being watched (the Hawthorne effect).",
+    feels: "It is in every management textbook, and everyone has tried harder when the boss walked by.",
+    guess: { q: "When economists found and re-analysed the original Hawthorne lighting data, what did they find?", options: ["Output rose with every change in lighting", "No clear evidence of the famous effect", "The data showed output fell"], answer: 1 },
+    says: "The illumination data, long thought lost, were recovered and re-analysed: they do not show the famous pattern of output rising with any change in lighting. A systematic review of being observed in research found such effects in some settings, but small and inconsistent.",
+    slip: "A story that fit a new idea about management spread faster than anyone checked the numbers.",
+    instead: "When a change seems to work, test it against a comparison group before giving credit to the change or to the watching.",
+    holds: "Being observed can change behaviour in some situations; the review finds evidence for that, just not a reliable universal effect.",
+    strength: "moderate", direction: "unsupported",
+    sources: [
+      S("Levitt and List", 2011, "Was there really a Hawthorne effect at the Hawthorne plant? An analysis of the original illumination experiments", "American Economic Journal: Applied Economics", "observational", "The recovered data show no clear evidence of the effect as usually described."),
+      S("McCambridge, Witton and Elbourne", 2014, "Systematic review of the Hawthorne effect: New concepts are needed to study research participation effects", "Journal of Clinical Epidemiology", "review", "Effects of being studied exist in some settings but are small, varied and poorly understood.")
+    ],
+    query: "Hawthorne effect observation research participation", related: ["long-hours", "big-bonuses", "elderly-priming"]
+  },
+  {
+    id: "pen-in-mouth", cat: "retold",
+    classic: { then: "1988: holding a pen in your teeth to force a smile seems to make cartoons funnier", now: "2016: seventeen labs repeat the study and find no effect" },
+    belief: "Forcing a smile, for example by holding a pen in your teeth, makes you feel happier.",
+    feels: "It is an appealing trick, and it fits a tidy idea: the body tells the mind how it feels.",
+    guess: { q: "When 17 labs repeated the pen-in-the-teeth study with a shared plan, what did they find?", options: ["The same effect", "No effect", "Cartoons seemed less funny"], answer: 1 },
+    says: "A registered replication across 17 labs found no effect of the pen method on how funny cartoons seemed. A later large multi-lab study found that copying a smile could slightly raise reported happiness, but the pen method showed little.",
+    slip: "A clever single study was cited for decades before anyone ran it again at scale.",
+    instead: "Smiling will not hurt, but for mood, things with stronger evidence (sleep, movement, time with people) are better bets.",
+    holds: "There may be a small effect of posed expressions on mood; the dramatic version from one pen study did not hold.",
+    strength: "moderate", direction: "mostly-contradicts",
+    sources: [
+      S("Wagenmakers et al.", 2016, "Registered Replication Report: Strack, Martin, and Stepper (1988)", "Perspectives on Psychological Science", "replication", "Across 17 labs, the pen procedure had no detectable effect on how funny cartoons were rated."),
+      S("Coles et al.", 2022, "A multi-lab test of the facial feedback hypothesis by the Many Smiles Collaboration", "Nature Human Behaviour", "replication", "Mimicking a smile slightly raised reported happiness; the pen-in-mouth method produced little or no effect.")
+    ],
+    query: "facial feedback hypothesis replication smile", related: ["power-posing", "ego-depletion", "elderly-priming"]
+  },
+  {
+    id: "elderly-priming", cat: "retold",
+    classic: { then: "1996: reading words about old age seems to make people walk more slowly down a corridor", now: "2012: with automatic timing, the slowing appears only when the experimenters expect it" },
+    belief: "Reading words about old age makes people walk more slowly.",
+    feels: "It became a famous example of how invisible cues steer us, and it is a fun story to tell.",
+    guess: { q: "When the study was repeated with infrared timing, when did people walk more slowly?", options: ["Whenever they read the words", "Only when the experimenters expected them to", "Never, under any condition"], answer: 1 },
+    says: "A replication that timed walking with infrared sensors found no slowing from the words. Slowing appeared only when the experimenters believed people would walk slowly and timed them by hand.",
+    slip: "The experimenter's own expectations were part of the measurement, so the effect was in the observers as much as the walkers.",
+    instead: "Be wary of findings where the person measuring knows what to expect. Blind measurement is the test.",
+    holds: "Context can influence behaviour; this particular dramatic effect is what did not replicate.",
+    strength: "moderate", direction: "unsupported",
+    sources: [
+      S("Bargh, Chen and Burrows", 1996, "Automaticity of social behavior: Direct effects of trait construct and stereotype activation on action", "Journal of Personality and Social Psychology", "trial", "The original study: participants primed with words about old age walked more slowly."),
+      S("Doyen, Klein, Pichon and Cleeremans", 2012, "Behavioral priming: It's all in the mind, but whose mind?", "PLoS ONE", "replication", "With automated timing there was no slowing; slowing appeared only with experimenters who expected it.")
+    ],
+    query: "behavioral priming replication walking speed", related: ["pen-in-mouth", "power-posing", "hawthorne-effect"]
+  },
+  {
+    id: "ten-thousand-hours", cat: "retold",
+    classic: { then: "2008: a bestseller turns research on violinists into a rule: 10,000 hours of practice makes an expert", now: "2014: a meta-analysis finds practice explains only part of the differences between people" },
+    belief: "Ten thousand hours of practice will make anyone an expert.",
+    feels: "It is a fair and hopeful rule: talent does not matter, effort does, and the number is easy to remember.",
+    guess: { q: "Across many fields, how much of the difference in skill between people did deliberate practice explain?", options: ["Almost all of it", "About an eighth of it", "None of it"], answer: 1 },
+    says: "A meta-analysis found deliberate practice explained about 12% of the differences in performance overall: more in games, music and sports, much less in education and almost none in professions.",
+    slip: "An average from one group of elite violinists became a threshold for everyone.",
+    instead: "Practise well and for a long time, and also look at starting age, feedback, fit and other factors that matter as much.",
+    holds: "Practice clearly matters, and nobody gets to the top without a lot of it. The magic number and the claim that it is all that matters are what fail.",
+    strength: "moderate", direction: "mostly-contradicts",
+    sources: [
+      S("Macnamara, Hambrick and Oswald", 2014, "Deliberate practice and performance in music, games, sports, education, and professions: A meta-analysis", "Psychological Science", "review", "Deliberate practice explained about 12% of the variance in performance, with large differences between domains."),
+      S("Ericsson and Pool", 2016, "Peak: Secrets from the New Science of Expertise", "Houghton Mifflin Harcourt", "narrative", "The researcher behind the violin study says the number was an average, not a threshold, and that the kind of practice matters more than the hours.")
+    ],
+    query: "deliberate practice expertise meta-analysis", related: ["learning-styles", "growth-mindset", "marshmallow-test"]
+  },
+  {
+    id: "pygmalion-effect", cat: "retold",
+    classic: { then: "1968: telling teachers some pupils are about to bloom seems to raise those pupils' IQ", now: "2005: reviews find expectation effects are real but usually small, and often fade" },
+    belief: "If teachers expect a child to bloom, the child's IQ will rise (the Pygmalion effect).",
+    feels: "It is a moving idea, that belief alone can lift a child, and it shows how much teachers matter.",
+    guess: { q: "What do reviews of teacher-expectation studies find?", options: ["Large, lasting IQ gains", "Real but usually small effects that often fade", "No effect at all"], answer: 1 },
+    says: "Reviews find teachers' expectations do affect pupils, but the effects are usually small, are larger for some groups of pupils, and often fade. In a synthesis of 18 experiments, IQ effects appeared mainly when teachers had not yet got to know their pupils.",
+    slip: "One striking study was retold without the many attempts that found smaller effects.",
+    instead: "Hold high expectations and back them with good teaching and feedback; belief alone is not the lever.",
+    holds: "Low expectations can harm some pupils, especially those already disadvantaged; that part of the story deserves attention.",
+    strength: "moderate", direction: "complicates",
+    sources: [
+      S("Raudenbush", 1984, "Magnitude of teacher expectancy effects on pupil IQ as a function of the credibility of expectancy induction: A synthesis of findings from 18 experiments", "Journal of Educational Psychology", "review", "Effects on IQ appeared mainly when teachers had little prior contact with their pupils."),
+      S("Jussim and Harber", 2005, "Teacher expectations and self-fulfilling prophecies: Knowns and unknowns, resolved and unresolved controversies", "Personality and Social Psychology Review", "review", "Expectancy effects are real but typically small, may be larger for some groups, and often dissipate.")
+    ],
+    query: "teacher expectations self-fulfilling prophecy", related: ["marshmallow-test", "grade-retention", "learning-styles"]
   }
 ];
 

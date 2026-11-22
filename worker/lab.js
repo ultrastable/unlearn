@@ -20,7 +20,9 @@ export const LAB = {
   variant_min_answers: 20,   // an entry needs this many "changed my view" answers before a new wording is drafted
   variant_min_arm: 40,       // answers per arm before a trial can be decided
   variant_max_arm: 300,      // a trial with no clear winner by then keeps the current wording
-  z: 1.96
+  z: 1.96,
+  publish_min_yes: 3,        // a Lab draft gets its own page once readers vote it up: at least this many yes votes ...
+  publish_net: 2             // ... and this many more yes than no. It stays labelled a draft from one source.
 };
 export const STANCES = ["supports_belief", "contradicts_belief", "mixed", "unrelated"];
 const RANKED = Object.entries(STRENGTH).sort((a, b) => a[1].rank - b[1].rank).map(([k]) => k);
@@ -69,20 +71,26 @@ export function regrade(entry, leads) {
 }
 
 // ---- 3. discover -----------------------------------------------------------------------------------------------------------------------
+// Two searches: reviews about popular myths, and replications or re-analyses of famous studies (the "famous finding, retold" kind that
+// Humankind is built on: a landmark result that later work overturned or recast).
+export const RETOLD_QUERY = '(TITLE:"replication" OR TITLE:"replicating" OR TITLE:"revisited" OR TITLE:"revisiting" OR TITLE:"reanalysis" OR TITLE:"re-analysis" OR TITLE:"re-examination" OR TITLE:"reconsidered" OR TITLE:"debunking" OR TITLE:"myth") AND (TITLE:"classic" OR TITLE:"famous" OR TITLE:"landmark" OR TITLE:"experiment" OR TITLE:"effect" OR TITLE:"study")';
 export const DISCOVER_QUERY = '(TITLE:"myth" OR TITLE:"myths" OR TITLE:"misconception" OR TITLE:"misconceptions" OR TITLE:"common belief" OR TITLE:"popular belief" OR TITLE:"debunking") AND (PUB_TYPE:"systematic-review" OR PUB_TYPE:"review" OR TITLE:"meta-analysis" OR TITLE:"systematic review")';
-export async function discover(since, fetchFn, entries = ENTRIES) {
-  const url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=core&pageSize=10&sort=FIRST_PDATE_D%20desc&query=" + encodeURIComponent(`${DISCOVER_QUERY} AND FIRST_PDATE:[${since} TO 3000-01-01]`);
+export const SEARCHES = [{ kind: "myth", q: DISCOVER_QUERY }, { kind: "retold", q: RETOLD_QUERY }];
+export async function discover(since, fetchFn, entries = ENTRIES, query = DISCOVER_QUERY, kind = "myth") {
+  const url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=core&pageSize=10&sort=FIRST_PDATE_D%20desc&query=" + encodeURIComponent(`${query} AND FIRST_PDATE:[${since} TO 3000-01-01]`);
   const r = await fetchFn(url, { headers: { "user-agent": EVIDENCE.ua, accept: "application/json" } });
   if (!r.ok) throw new Error("europepmc " + r.status);
   const list = ((await r.json()).resultList || {}).result || [];
   const cited = entries.flatMap(e => e.sources.map(s => s.title));
-  return list.filter(x => x.abstractText && !cited.some(t => titleMatch(t, x.title) >= 0.8)).map(x => ({
+  return list.filter(x => x.abstractText && (x.doi || x.pmid) && !cited.some(t => titleMatch(t, x.title) >= 0.8)).map(x => ({ kind,
     ref: x.doi ? "doi:" + String(x.doi).toLowerCase() : x.pmid ? "pmid:" + x.pmid : "epmc:" + x.id, title: String(x.title || "").slice(0, 400),
     venue: String(x.journalTitle || (x.journalInfo && x.journalInfo.journal && x.journalInfo.journal.title) || "").slice(0, 200), year: Number(x.pubYear) || null,
     url: x.doi ? "https://doi.org/" + x.doi : x.pmid ? "https://europepmc.org/article/MED/" + x.pmid : "https://europepmc.org/search?query=" + encodeURIComponent(x.title || ""),
     abstract: String(x.abstractText).replace(/<[^>]+>/g, " ").slice(0, 4000) }));
 }
 export function draftPrompt(c) {
+  if (c.kind === "retold") return [{ role: "system", content: "This abstract may report a replication or re-analysis of a famous study. Reply with JSON only: {\"belief\": the popular belief the famous study is cited for, in one plain sentence as people say it, \"story\": what the famous study was taken to show, in one plain sentence, \"later\": what this paper found, in one or two plain sentences, using only facts in the abstract, \"quote\": one sentence copied exactly from the abstract that supports what it found}. If the abstract does not revisit a well-known finding, reply {\"belief\": null}." },
+    { role: "user", content: `${c.title}\n\n${String(c.abstract).slice(0, 3500)}` }];
   return [{ role: "system", content: "From one research abstract, state the popular belief it tests and what it found. Reply with JSON only: {\"belief\": the popular belief in one plain sentence as people say it, \"says\": what the review found in one or two plain sentences, using only facts in the abstract, \"quote\": one sentence copied exactly from the abstract that supports what it found}. If the abstract does not test a popular belief, reply {\"belief\": null}." },
     { role: "user", content: `${c.title}\n\n${String(c.abstract).slice(0, 3500)}` }];
 }
@@ -93,7 +101,28 @@ export function checkDraft(out, c) {
   if (belief.length < 10 || belief.length > 200 || says.length < 20 || says.length > 500) return { ok: false, why: "length" };
   if (!grounded(j.quote, c.abstract)) return { ok: false, why: "quote not in abstract" };
   if (!noNewFacts(says, c.abstract + " " + c.title)) return { ok: false, why: "fact not in abstract" };
-  return { ok: true, draft: { belief, says, quote: String(j.quote).trim().slice(0, 500) } };
+  const draft = { belief, says, quote: String(j.quote).trim().slice(0, 500) };
+  if (c.kind === "retold") {
+    const story = String(j.story || "").trim(), later = String(j.later || "").trim();
+    if (story.length < 20 || story.length > 300 || later.length < 20 || later.length > 500) return { ok: false, why: "length" };
+    if (!noNewFacts(story + " " + later, c.abstract + " " + c.title)) return { ok: false, why: "fact not in abstract" };
+    Object.assign(draft, { story, later });
+  }
+  return { ok: true, draft };
+}
+
+// A draft readers voted up gets its own page. Its citation came from the search index itself (a DOI or PubMed id), never from the model.
+export function publishable(c) {
+  return c.status === "drafted" && /^(doi|pmid):/.test(c.ref || "") && c.yes >= LAB.publish_min_yes && c.yes - c.no >= LAB.publish_net;
+}
+
+// ---- myth of the day: a fixed shuffled order, one entry a day, cycling through every entry before any repeats -----------------------------
+const hash = s => { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+export function dayIndex(now) { return Math.floor(now / 86400000); }
+export function mythOfDay(now, entries = ENTRIES) {
+  const d = dayIndex(now), n = entries.length, cycle = Math.floor(d / n);
+  const order = [...entries].sort((a, b) => hash(a.id + ":" + cycle) - hash(b.id + ":" + cycle) || a.id.localeCompare(b.id));
+  return order[d % n];
 }
 
 // ---- 4. variants -----------------------------------------------------------------------------------------------------------------------

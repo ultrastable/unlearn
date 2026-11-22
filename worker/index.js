@@ -12,8 +12,8 @@ import MODELS from "../../../doctrine/models.json" with { type: "json" };
 import { page } from "./page.js";
 import { ENTRIES, CATEGORIES } from "./entries.js";
 import { checkEntries, freshness, reviewQueue } from "./evidence.js";
-import { LAB, triagePrompt, checkTriage, regrade, discover, draftPrompt, checkDraft, variantPrompt, checkVariant, decide, pickForVariant } from "./lab.js";
-import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage } from "./site.js";
+import { LAB, triagePrompt, checkTriage, regrade, discover, draftPrompt, checkDraft, variantPrompt, checkVariant, decide, pickForVariant, SEARCHES, publishable, mythOfDay, dayIndex } from "./lab.js";
+import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage, draftPage, feed } from "./site.js";
 
 const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS explorations (id TEXT PRIMARY KEY, token TEXT UNIQUE NOT NULL, created INTEGER NOT NULL, topic TEXT NOT NULL, age TEXT, move_id TEXT NOT NULL, move_text TEXT NOT NULL, reworded INTEGER NOT NULL DEFAULT 0, f7 INTEGER, f14 INTEGER, adult TEXT, grp TEXT, pseudonym TEXT)",
@@ -35,7 +35,7 @@ const SCHEMA = [
 ];
 // Columns added after the first deploy. SQLite has no ADD COLUMN IF NOT EXISTS, so a duplicate-column error means already applied;
 // any other error is thrown (never swallowed).
-const COLUMNS = ["ALTER TABLE explorations ADD COLUMN led TEXT", "ALTER TABLE leads ADD COLUMN abstract TEXT", "ALTER TABLE leads ADD COLUMN stance TEXT",
+const COLUMNS = ["ALTER TABLE candidates ADD COLUMN kind TEXT", "ALTER TABLE explorations ADD COLUMN led TEXT", "ALTER TABLE leads ADD COLUMN abstract TEXT", "ALTER TABLE leads ADD COLUMN stance TEXT",
   "ALTER TABLE leads ADD COLUMN quote TEXT", "ALTER TABLE leads ADD COLUMN classified INTEGER"];
 async function addColumns(db) {
   for (const sql of COLUMNS) {
@@ -171,6 +171,11 @@ export async function grades(db) {
   const by = {}; for (const r of rows) (by[r.entry] = by[r.entry] || []).push(r);
   return Object.fromEntries(ENTRIES.map(e => [e.id, regrade(e, by[e.id] || [])]));
 }
+// Lab drafts readers voted up (lab.js publishable): each gets its own page, labelled as a draft from one source, and joins the feed.
+export async function published(db) {
+  const rows = (await db.prepare("SELECT id, ref, title, venue, year, url, status, draft, yes, no, found, kind FROM candidates WHERE status='drafted' ORDER BY found DESC LIMIT 500").all()).results || [];
+  return rows.filter(publishable).map(r => ({ ...r, draft: JSON.parse(r.draft) }));
+}
 // The wording an entry shows now: a promoted winner, or one arm of a running trial chosen at random per view.
 export async function wording(db, entryId, rnd = Math.random) {
   const rows = (await db.prepare("SELECT id, arm, text, status FROM variants WHERE entry=?1 AND status IN ('trial','winner') ORDER BY id DESC").bind(entryId).all()).results || [];
@@ -198,15 +203,15 @@ export async function labBeat(env, db, now, fetchFn) {
     if (now - last >= LAB.discover_every_hours * 3600000) {
       try {
         const since = new Date(last || Date.UTC(2025, 0, 1)).toISOString().slice(0, 10);
-        for (const c of await discover(since, fetchFn)) {
-          const r = await db.prepare("INSERT OR IGNORE INTO candidates (ref, title, venue, year, url, abstract, found) VALUES (?1,?2,?3,?4,?5,?6,?7)").bind(c.ref, c.title, c.venue, c.year, c.url, c.abstract, now).run();
+        for (const q of SEARCHES) for (const c of await discover(since, fetchFn, ENTRIES, q.q, q.kind)) {
+          const r = await db.prepare("INSERT OR IGNORE INTO candidates (ref, title, venue, year, url, abstract, found, kind) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)").bind(c.ref, c.title, c.venue, c.year, c.url, c.abstract, now, c.kind).run();
           out.discovered += (r.meta && r.meta.changes) || 0;
         }
         await setState(db, "last_discover", now);
       } catch (e) { out.errors.push("discover: " + (e && e.message)); }
     }
   }
-  const fresh = (await db.prepare("SELECT id, title, abstract FROM candidates WHERE status='new' ORDER BY found LIMIT ?1").bind(LAB.drafts_per_beat).all()).results || [];
+  const fresh = (await db.prepare("SELECT id, title, abstract, kind FROM candidates WHERE status='new' ORDER BY found LIMIT ?1").bind(LAB.drafts_per_beat).all()).results || [];
   for (const c of fresh) {
     const text = await ask(env, db, draftPrompt(c), 300); if (text === null) break;
     const d = checkDraft(text, c);
@@ -318,13 +323,19 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
   const html = (h, s = 200, live = false) => new Response(h, { status: s, headers: { "content-type": "text/html; charset=utf-8", "cache-control": live ? "no-store" : "public, max-age=300" } });
   if (req.method === "GET" || req.method === "HEAD") {
     const p = u.pathname.replace(/\/+$/, "") || "/";
-    if (p === "/" || p === "/index.html") { await catchUp(env, ctx, now); const m = await encyclopediaMetrics(db, now); return html(home({ stats: m, surprising: m.surprising, grades: await grades(db) })); }
+    if (p === "/" || p === "/index.html") { await catchUp(env, ctx, now); const m = await encyclopediaMetrics(db, now); return html(home({ stats: m, surprising: m.surprising, grades: await grades(db), today: mythOfDay(now), drafts: (await published(db)).slice(0, 3) })); }
+    if (p === "/today") return new Response(null, { status: 302, headers: { location: "/e/" + mythOfDay(now).id + "?from=today", "cache-control": "no-store" } });
+    if (p === "/feed.xml") return new Response(feed(now, await published(db)), { headers: { "content-type": "application/atom+xml; charset=utf-8", "cache-control": "public, max-age=3600" } });
+    if (p.startsWith("/d/")) {
+      const id = Number(p.slice(3)); const c = Number.isInteger(id) ? (await published(db)).find(x => x.id === id) : null;
+      if (c) return html(draftPage(c), 200, true);
+    }
     if (p === "/topics") return html(topics(await grades(db)));
     if (p.startsWith("/topics/")) { const h = topic(p.slice(8), await grades(db)); if (h) return html(h); }
     if (p === "/lab") {
-      const rows = (await db.prepare("SELECT id, title, venue, year, url, draft, yes, no, found FROM candidates WHERE status='drafted' ORDER BY (yes - no) DESC, found DESC LIMIT 40").all()).results || [];
+      const rows = (await db.prepare("SELECT id, ref, status, title, venue, year, url, draft, yes, no, found, kind FROM candidates WHERE status='drafted' ORDER BY (yes - no) DESC, found DESC LIMIT 40").all()).results || [];
       const trials = (await db.prepare("SELECT entry, arm, text, status, yes, total, decided FROM variants ORDER BY id DESC LIMIT 20").all()).results || [];
-      return html(labPage({ candidates: rows.map(r => ({ ...r, draft: JSON.parse(r.draft) })), trials, metrics: await labMetrics(db) }), 200, true);
+      return html(labPage({ candidates: rows.map(r => ({ ...r, draft: JSON.parse(r.draft), published: publishable(r) })), trials, metrics: await labMetrics(db) }), 200, true);
     }
     if (p === "/api/candidates.json") {
       const rows = (await db.prepare("SELECT id, ref, title, venue, year, url, status, draft, why, yes, no, found FROM candidates ORDER BY found DESC LIMIT 200").all()).results || [];
@@ -342,7 +353,7 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     if (p === "/search") return html(searchPage(u.searchParams.get("q") || ""));
     if (p === "/play") return html(playPage());
     if (p === "/how") return html(howPage({ fresh: freshness(await checkedMap(db), now), metrics: await encyclopediaMetrics(db, now) }));
-    if (p === "/sitemap.xml") return new Response(sitemap(), { headers: { "content-type": "application/xml; charset=utf-8" } });
+    if (p === "/sitemap.xml") return new Response(sitemap((await published(db)).map(c => c.id)), { headers: { "content-type": "application/xml; charset=utf-8" } });
     if (p === "/robots.txt") return new Response("User-agent: *\nAllow: /\nSitemap: https://unlearn.ultrastable.org/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (p === "/api/entries.json") {
       const all = (await db.prepare("SELECT key, entry, doi FROM sources WHERE doi IS NOT NULL").all()).results || [];

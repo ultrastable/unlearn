@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { handle, labBeat, grades, wording } from './index.js';
 import { ENTRIES } from './entries.js';
-import { grounded, noNewFacts, checkTriage, regrade, checkDraft, checkVariant, decide, pickForVariant, discover, LAB } from './lab.js';
+import { grounded, noNewFacts, checkTriage, regrade, checkDraft, checkVariant, decide, pickForVariant, discover, LAB, publishable, mythOfDay, SEARCHES } from './lab.js';
 import { reviewQueue } from './evidence.js';
 
 function d1() {
@@ -132,4 +132,58 @@ test('with no model the lab beat changes nothing and records no refusals', async
   const out = await labBeat({ DB: db }, db, now, null);
   assert.equal(out.triaged + out.refused + out.drafted, 0);
   assert.equal(db.raw.prepare('SELECT classified FROM leads').get().classified, null, 'left for the next beat');
+});
+
+test('famous findings, retold: entries carry a then-and-now timeline, and retold drafts need both halves grounded in the abstract', async () => {
+  const retold = ENTRIES.filter(e => e.cat === 'retold');
+  assert.ok(retold.length >= 10);
+  for (const e of retold) { assert.ok(e.classic && e.classic.then.length > 20 && e.classic.now.length > 20, e.id + ' timeline'); }
+  const page = await (await handle(get('/e/milgram-obedience'), { DB: d1() })).text();
+  assert.match(page, /class="timeline"/); assert.match(page, /The famous story/);
+  assert.equal(ENTRIES.find(e => e.id === 'milgram-obedience').direction, 'complicates', 'Milgram partly replicates, and is graded that way');
+  assert.deepEqual(SEARCHES.map(x => x.kind), ['myth', 'retold']);
+  const c = { kind: 'retold', title: 'Order-maintenance policing revisited', abstract: ABSTRACT };
+  const ok = checkDraft(JSON.stringify({ belief: 'Cracking down on small offences prevents serious crime.', story: 'A famous study was taken to show that cracking down on disorder prevents crime.', later: 'Aggressive arrests for minor disorder did not reduce serious crime in most cities studied.', says: 'Aggressive arrests for minor disorder did not reduce serious crime.', quote: QUOTE }), c);
+  assert.equal(ok.ok, true); assert.match(ok.draft.story, /famous study/);
+  assert.equal(checkDraft(JSON.stringify({ belief: 'Cracking down on small offences prevents serious crime.', story: 'Kelling showed in 1982 that it works.', later: 'Aggressive arrests for minor disorder did not reduce serious crime.', says: 'Aggressive arrests for minor disorder did not reduce serious crime.', quote: QUOTE }), c).why, 'fact not in abstract');
+  assert.equal(checkDraft(JSON.stringify({ belief: 'Cracking down on small offences prevents serious crime.', says: 'Aggressive arrests for minor disorder did not reduce serious crime.', quote: QUOTE }), c).ok, false, 'a retold draft needs its story and what came later');
+});
+
+test('a myth of the day cycles through every entry before repeating, and /today, the feed and the streak are wired', async () => {
+  const day = 86400000, start = Date.UTC(2026, 0, 1);
+  const n = ENTRIES.length; const c0 = Math.floor(start / day / n) * n * day;
+  const seen = new Set(); for (let k = 0; k < n; k++) seen.add(mythOfDay(c0 + k * day).id);
+  assert.equal(seen.size, n);
+  assert.equal(mythOfDay(start).id, mythOfDay(start + 3600000).id, 'stable within a day');
+  const env = { DB: d1() }; const now = Date.UTC(2026, 10, 22, 9);
+  const r = await handle(get('/today'), env, now);
+  assert.equal(r.status, 302); assert.equal(r.headers.get('location'), '/e/' + mythOfDay(now).id + '?from=today');
+  const home = await (await handle(get('/'), env, now)).text();
+  assert.match(home, /Myth of the day/); assert.ok(home.includes('href="/e/' + mythOfDay(now).id + '"'));
+  assert.ok(home.includes('application/atom+xml'));
+  const f = await handle(get('/feed.xml'), env, now); const x = await f.text();
+  assert.match(f.headers.get('content-type'), /atom/);
+  assert.equal((x.match(/<entry>/g) || []).length, 30);
+  assert.ok(x.includes('/e/' + mythOfDay(now).id));
+  const e = await (await handle(get('/e/' + BW.id), env, now)).text();
+  assert.match(e, /localStorage/); assert.doesNotMatch(e, /document\.cookie/);
+});
+
+test('a Lab draft gets its own page only after readers vote it up, and only with an index citation', async () => {
+  assert.equal(publishable({ status: 'drafted', ref: 'doi:10.1/x', yes: 3, no: 1 }), true);
+  assert.equal(publishable({ status: 'drafted', ref: 'doi:10.1/x', yes: 3, no: 2 }), false, 'needs a clear margin');
+  assert.equal(publishable({ status: 'drafted', ref: 'epmc:1', yes: 9, no: 0 }), false, 'needs a DOI or PubMed id');
+  assert.equal(publishable({ status: 'rejected', ref: 'doi:10.1/x', yes: 9, no: 0 }), false);
+  const db = d1(); const env = { DB: db }; const now = Date.UTC(2026, 10, 22);
+  await handle(get('/health'), env, now);
+  const draft = { belief: 'Cracking down on small offences prevents serious crime.', says: 'Aggressive arrests did not reduce serious crime.', quote: QUOTE, story: 'A famous study was taken to show that cracking down on disorder prevents crime.', later: 'Aggressive arrests for minor disorder did not reduce serious crime.' };
+  db.raw.prepare("INSERT INTO candidates (ref, title, venue, year, url, abstract, found, status, draft, kind) VALUES ('doi:10.5/r','Policing revisited','J',2026,'https://doi.org/10.5/r',?,?, 'drafted', ?, 'retold')").run(ABSTRACT, now, JSON.stringify(draft));
+  const id = db.raw.prepare('SELECT id FROM candidates').get().id;
+  assert.equal((await handle(get('/d/' + id), env, now)).status, 404);
+  for (const ip of ['1.1.1.1', '2.2.2.2', '3.3.3.3']) await handle(post('/api/candidate-vote', { id, vote: 'yes' }, ip), env, now);
+  const p = await handle(get('/d/' + id), env, now); const h = await p.text();
+  assert.equal(p.status, 200); assert.match(h, /Draft from one paper/); assert.match(h, /What this paper found/); assert.ok(h.includes('https://doi.org/10.5/r'));
+  assert.ok((await (await handle(get('/sitemap.xml'), env, now)).text()).includes('/d/' + id));
+  assert.ok((await (await handle(get('/feed.xml'), env, now)).text()).includes('Lab draft: Cracking down'));
+  assert.match(await (await handle(get('/lab'), env, now)).text(), /it has its own page/);
 });

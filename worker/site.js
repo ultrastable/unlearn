@@ -5,7 +5,7 @@
 // body, 44 px targets, visible focus, reduced motion respected. No cookies, no trackers.
 import { ENTRIES, CATEGORIES, STRENGTH, DIRECTION, DESIGN, METHOD, FORMAT } from "./entries.js";
 import { EVIDENCE } from "./evidence.js";
-import { LAB } from "./lab.js";
+import { LAB, mythOfDay } from "./lab.js";
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const catOf = id => CATEGORIES.find(c => c.id === id);
@@ -59,18 +59,23 @@ blockquote.b{font-size:clamp(1.3rem,3.5vw,1.8rem);font-weight:700;line-height:1.
 .play{max-width:640px;margin:0 auto}footer{max-width:1080px;margin:0 auto;padding:24px 16px 48px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line)}
 .badge{display:inline-block;align-self:flex-start;font-size:.8rem;font-weight:700;padding:2px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}.badge.ok{color:var(--ok);border-color:var(--ok)}.badge.warn{color:var(--warn);border-color:var(--warn)}
 .okbox{border-color:var(--ok)}.warnbox{border-color:var(--warn)}blockquote.q{margin:6px 0;padding-left:10px;border-left:3px solid var(--line);color:var(--muted);font-style:italic}
+ol.timeline{list-style:none;margin:14px 0;padding:0 0 0 18px;border-left:3px solid var(--accent)}ol.timeline li{position:relative;margin:0 0 12px}ol.timeline li::before{content:"";position:absolute;left:-26px;top:6px;width:13px;height:13px;border-radius:99px;background:var(--accent)}ol.timeline .k{display:block;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;color:var(--accent)}
+.today .card{max-width:560px}
 [hidden]{display:none!important}@media (prefers-reduced-motion:reduce){*{transition:none!important}}`;
 
 export function layout(title, body, { desc = "", script = "", path = "/" } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc || "Unlearn: popular beliefs where the evidence points another way, with graded evidence and named sources.")}">
-<link rel="canonical" href="https://unlearn.ultrastable.org${esc(path)}"><style>${CSS}</style></head><body>
-<header class="top"><nav aria-label="Main"><a class="brand" href="/">Un<span>learn</span></a><a href="/topics">Topics</a><a href="/play">Play</a><a href="/lab">Lab</a><a href="/how">How it works</a><a href="/coach">Coach a child</a></nav></header>
+<link rel="canonical" href="https://unlearn.ultrastable.org${esc(path)}"><link rel="alternate" type="application/atom+xml" title="Unlearn: myth of the day" href="/feed.xml"><style>${CSS}</style></head><body>
+<header class="top"><nav aria-label="Main"><a class="brand" href="/">Un<span>learn</span></a><a href="/today">Today</a><a href="/topics">Topics</a><a href="/play">Play</a><a href="/lab">Lab</a><a href="/how">How it works</a><a href="/coach">Coach a child</a></nav></header>
 <main>${body}</main>
-<footer>Unlearn runs on <a href="https://ultrastable.io">Ultrastable</a>, the foundation for any autonomous system. Every entry cites its sources; an hourly loop checks them and watches for new reviews. Data: <a href="/api/entries.json">/api/entries.json</a>.</footer>
+<footer>Unlearn runs on <a href="https://ultrastable.io">Ultrastable</a>, the foundation for any autonomous system. Every entry cites its sources; an hourly loop checks them and watches for new reviews. Data: <a href="/api/entries.json">/api/entries.json</a>. Follow along: <a href="/feed.xml">feed</a>.</footer>
 ${script ? `<script>${script}</script>` : ""}</body></html>`;
 }
 
+// A daily streak kept only in the reader's own browser (localStorage): no cookie, nothing sent anywhere. A day counts when the reader makes a guess.
+export const STREAK_JS = `function streak(){let d=[];try{d=JSON.parse(localStorage.getItem('unlearn-days')||'[]')}catch(e){}const t=Math.floor(Date.now()/864e5);if(d[d.length-1]!==t)d.push(t);d=d.slice(-400);try{localStorage.setItem('unlearn-days',JSON.stringify(d))}catch(e){}let n=1;for(let i=d.length-1;i>0&&d[i]-d[i-1]===1;i--)n++;return n}
+function streakText(n){return n>1?' Day '+n+' in a row. Come back tomorrow for a new one.':' Come back tomorrow for a new myth of the day.'}`;
 export const meter = s => `<span class="meter" role="img" aria-label="Evidence: ${esc(STRENGTH[s].name)}">${[1, 2, 3, 4].map(i => `<i class="${i <= STRENGTH[s].rank ? "on" : ""}"></i>`).join("")}</span>`;
 const dir = d => `<span class="dir ${esc(d)}">${esc(DIRECTION[d].name)}</span>`;
 
@@ -86,7 +91,7 @@ export function card(e, grades = {}) {
 const FILTERS = `<div class="chips" role="group" aria-label="Filter by evidence"><button aria-pressed="true" data-f="all">All</button><button aria-pressed="false" data-f="strong">Strong evidence</button><button aria-pressed="false" data-f="moderate">Moderate</button><button aria-pressed="false" data-f="mixed">Split or limited</button></div>`;
 const FILTER_JS = `document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-f]').forEach(x=>x.setAttribute('aria-pressed',x===b));const f=b.dataset.f;document.querySelectorAll('.card').forEach(c=>{const s=c.dataset.strength;c.hidden=!(f==='all'||s===f||(f==='mixed'&&(s==='mixed'||s==='limited')))})});`;
 
-export function home({ stats = {}, surprising = [], grades = {} } = {}) {
+export function home({ stats = {}, surprising = [], grades = {}, today = null, drafts = [] } = {}) {
   const C = e => card(e, grades);
   const nSrc = ENTRIES.reduce((n, e) => n + e.sources.length, 0);
   const tiles = CATEGORIES.map(c => `<a class="tile" href="/topics/${c.id}" style="--h:${c.hue}"><span class="n">${ENTRIES.filter(e => e.cat === c.id).length}</span><b>${esc(c.name)}</b><span class="small muted">${esc(c.blurb)}</span></a>`).join("");
@@ -97,7 +102,8 @@ export function home({ stats = {}, surprising = [], grades = {} } = {}) {
 <div class="row" style="margin-bottom:18px"><a class="btn primary" href="/play">Test your intuition</a><a class="btn" href="/topics">Browse by topic</a></div>
 <div class="stats"><div><b>${ENTRIES.length}</b><span class="small muted">beliefs examined</span></div><div><b>${nSrc}</b><span class="small muted">studies cited</span></div><div><b>${stats.leads ?? 0}</b><span class="small muted">new reviews found by the loop</span></div><div><b>${stats.guesses ?? 0}</b><span class="small muted">guesses made</span></div></div>
 <form class="pill" action="/search" role="search"><input name="q" aria-label="Search beliefs" placeholder="Search: prison, sugar, memory, minimum wage"><button class="btn primary" type="submit">Search</button></form></section>
-<h2>Topics</h2><div class="tiles">${tiles}</div>${surp}
+${today ? `<h2>Myth of the day</h2><div class="today">${card(today, grades)}<p class="small muted">A new one every day, in a fixed order that goes through every entry before any repeats. <a href="/feed.xml">Follow the feed</a>.</p></div>` : ""}
+<h2>Topics</h2><div class="tiles">${tiles}</div>${surp}${drafts.length ? `<h2>New from the Lab</h2><p class="muted small">Drafts the loop wrote from new research and readers voted up. Each is from one paper and not yet graded.</p><div class="grid">${drafts.map(draftCard).join("")}</div>` : ""}
 <h2>All entries</h2>${FILTERS}<div class="grid">${ENTRIES.map(C).join("")}</div>`, { script: FILTER_JS, desc: "Popular beliefs where the evidence points another way: graded evidence, named sources, and a loop that keeps checking them." });
 }
 
@@ -123,6 +129,7 @@ export function entryPage(e, { dois = {}, leads = [], counts = {}, grade = null,
   const body = `<p class="small"><a href="/topics/${c.id}">${esc(c.name)}</a></p>
 <p class="small muted" style="margin:0">The belief</p><blockquote class="b" style="--h:${c.hue}">${esc(e.belief)}</blockquote>
 <div class="row">${meter(st)} <span class="small">${esc(STRENGTH[st].name)} evidence</span> · ${dir(e.direction)}</div>${gradeHtml}
+${e.classic ? `<ol class="timeline" aria-label="The famous story and what came later"><li><span class="k">The famous story</span>${esc(e.classic.then)}</li><li><span class="k">What came later</span>${esc(e.classic.now)}</li></ol>` : ""}
 <div class="step"><div class="k">Why it feels true</div><p style="margin:0">${esc(e.feels)}</p></div>
 <div class="step" id="guess" data-entry="${esc(e.id)}" data-answer="${g.answer}"><div class="k">Your guess</div><p style="margin:0"><b>${esc(g.q)}</b></p>
 <div class="opts">${g.options.map((o, i) => `<button type="button" data-i="${i}">${esc(o)}</button>`).join("")}</div><p class="small muted" id="gr" aria-live="polite">${right === null ? "" : `${right}% of ${guesses} readers guessed right.`}</p></div>
@@ -138,11 +145,11 @@ ${leadHtml}
 ${rel.length ? `<h2>Related</h2><div class="grid">${rel.map(x => card(x)).join("")}</div>` : ""}`;
   const js = `const G=document.getElementById('guess'),A=+G.dataset.answer,E=G.dataset.entry;let done=false;
 G.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(done)return;done=true;const i=+b.dataset.i;G.querySelectorAll('button').forEach(x=>{const j=+x.dataset.i;if(j===A)x.classList.add('right');else if(j===i)x.classList.add('wrong')});
-document.getElementById('gr').textContent=i===A?'You called it. Here is the evidence.':'Most beliefs feel true for good reasons. Here is what the studies found.';document.getElementById('rv').open=true;
+document.getElementById('gr').textContent=(i===A?'You called it. Here is the evidence.':'Most beliefs feel true for good reasons. Here is what the studies found.')+streakText(streak());document.getElementById('rv').open=true;
 fetch('/api/guess',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({entry:E,choice:i})}).catch(()=>{})});
 const S=document.getElementById('shift');document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-s]').forEach(x=>x.disabled=true);document.getElementById('sr').textContent='Thanks. Counted anonymously.';
 fetch('/api/shift',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.assign({entry:E,shift:b.dataset.s},S.dataset.variant?{variant:+S.dataset.variant}:{}))}).catch(()=>{})});`;
-  return layout(e.belief + " · Unlearn", body, { script: js, path: "/e/" + e.id, desc: "Belief: " + e.belief + " " + DIRECTION[e.direction].name + " (" + STRENGTH[st].name.toLowerCase() + " evidence)." });
+  return layout(e.belief + " · Unlearn", body, { script: STREAK_JS + js, path: "/e/" + e.id, desc: "Belief: " + e.belief + " " + DIRECTION[e.direction].name + " (" + STRENGTH[st].name.toLowerCase() + " evidence)." });
 }
 
 export function searchPage(q) {
@@ -159,13 +166,13 @@ function show(){const x=D[k%D.length];$('cat').textContent=x.c;$('bel').textCont
 $('opts').innerHTML=x.o.map((o,i)=>'<button type="button" data-i="'+i+'">'+esc(o)+'</button>').join('');
 $('opts').querySelectorAll('button').forEach(b=>b.onclick=()=>pick(x,+b.dataset.i))}
 function pick(x,i){if(!$('res').hidden)return;seen++;if(i===x.a)right++;$('opts').querySelectorAll('button').forEach(b=>{const j=+b.dataset.i;if(j===x.a)b.classList.add('right');else if(j===i)b.classList.add('wrong')});
-$('verdict').textContent=(i===x.a?'Right. ':'Not quite. ')+x.d+' ('+x.st.toLowerCase()+' evidence).';$('says').textContent=x.s;$('more').href='/e/'+x.id;$('res').hidden=false;$('score').textContent=right+' of '+seen+' right';
+$('verdict').textContent=(i===x.a?'Right. ':'Not quite. ')+x.d+' ('+x.st.toLowerCase()+' evidence).';$('says').textContent=x.s;$('more').href='/e/'+x.id;$('res').hidden=false;$('score').textContent=right+' of '+seen+' right';if(seen===1)$('verdict').textContent+=streakText(streak());
 fetch('/api/guess',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({entry:x.id,choice:i})}).catch(()=>{})}
 $('next').onclick=()=>{k++;show();$('bel').focus()};show();`;
   return layout("Test your intuition · Unlearn", `<div class="play"><h1>Test your intuition</h1><p class="lede">One belief at a time. Make a guess, then see what the evidence found. <span id="score" class="tag">0 of 0 right</span></p>
 <div class="step"><span class="tag" id="cat"></span><blockquote class="b" id="bel" tabindex="-1"></blockquote><p style="margin:0"><b id="q"></b></p><div class="opts" id="opts"></div>
 <div id="res" hidden aria-live="polite"><p><b id="verdict"></b></p><p id="says"></p><div class="row"><a class="btn" id="more" href="/">Read the full entry</a><button class="btn primary" id="next" type="button">Next belief</button></div></div></div>
-<noscript><p>Play mode needs script. <a href="/topics">Browse every entry instead</a>.</p></noscript></div>`, { script: js, path: "/play" });
+<noscript><p>Play mode needs script. <a href="/topics">Browse every entry instead</a>.</p></noscript></div>`, { script: STREAK_JS + js, path: "/play" });
 }
 
 export function howPage({ fresh, metrics }) {
@@ -185,11 +192,12 @@ ${Object.entries(DIRECTION).map(([k, d]) => `<div class="src">${dir(k)}. ${esc(d
 <li><b>Better explanations.</b> When an entry changes few minds, the model re-words "Where the intuition slips" from the entry's own text, with no new facts. Half the readers see the new wording; the "did this change how you see it" taps decide. The new wording wins only on a clear difference (two-proportion test, at least ${LAB.variant_min_arm} answers each); otherwise the original stays.</li></ol>
 ${metrics.lab ? `<div class="stats"><div><b>${metrics.lab.reviews_classified}</b><span class="small muted">new reviews read and labelled</span></div><div><b>${metrics.lab.entries_reinforced}</b><span class="small muted">entries reinforced</span></div><div><b>${metrics.lab.entries_challenged}</b><span class="small muted">entries under review</span></div><div><b>${metrics.lab.candidates.drafted || 0}</b><span class="small muted">candidate beliefs in the Lab</span></div></div>` : ""}
 <h2>Why "Unlearn"</h2><p>The name comes from a line in Rutger Bregman's <i>Humankind</i>, chapter "Homo Ludens": coaches at the Agora school "have to unlearn much of their training as teachers." The same applies to all of us. Unlearn also keeps its original tool for the adults around curious children: <a href="/coach">coach a child's curiosity</a>.</p>
-<h2>What it keeps</h2><p>No accounts and no cookies. A guess or a "did this change your view" tap is counted per entry with nothing that identifies the reader.</p>`, { path: "/how" });
+<h2>Something new every day</h2><p>Each day has a <a href="/today">myth of the day</a>, in a fixed order that goes through every entry before any repeats, and it is in the <a href="/feed.xml">feed</a> with the Lab drafts readers vote up. Daily discovery also searches for replications and re-analyses of famous studies, the "famous finding, retold" kind, and drafts them for the Lab with a then-and-now timeline.</p>
+<h2>What it keeps</h2><p>No accounts and no cookies. A guess or a "did this change your view" tap is counted per entry with nothing that identifies the reader. Your daily streak is kept only in your own browser's storage and is never sent anywhere.</p>`, { path: "/how" });
 }
 
-export function sitemap() {
-  const urls = ["/", "/topics", "/play", "/lab", "/how", "/coach", ...CATEGORIES.map(c => "/topics/" + c.id), ...ENTRIES.map(e => "/e/" + e.id)];
+export function sitemap(drafts = []) {
+  const urls = ["/", "/topics", "/play", "/lab", "/how", "/coach", ...drafts.map(id => "/d/" + id), ...CATEGORIES.map(c => "/topics/" + c.id), ...ENTRIES.map(e => "/e/" + e.id)];
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `<url><loc>https://unlearn.ultrastable.org${u}</loc></url>`).join("")}</urlset>`;
 }
 
@@ -201,7 +209,7 @@ export function entryJson(e, dois = {}) {
 
 export function labPage({ candidates = [], trials = [], metrics = {} } = {}) {
   const items = candidates.map(c => `<div class="step" data-c="${c.id}"><div class="k">Candidate belief</div><blockquote class="b" style="--h:300">${esc(c.draft.belief)}</blockquote>
-<p style="margin:0">${esc(c.draft.says)}</p><blockquote class="q">${esc(c.draft.quote)}</blockquote>
+${c.draft.story ? `<ol class="timeline"><li><span class="k">The famous story</span>${esc(c.draft.story)}</li><li><span class="k">What this paper found</span>${esc(c.draft.later)}</li></ol>` : `<p style="margin:0">${esc(c.draft.says)}</p>`}<blockquote class="q">${esc(c.draft.quote)}</blockquote>${c.published ? `<p class="small"><a href="/d/${c.id}">Readers voted this up: it has its own page</a></p>` : ""}
 <p class="small"><a href="${esc(c.url)}">${esc(c.title)}</a> <span class="muted">${esc(c.venue)}${c.year ? ", " + c.year : ""}</span></p>
 <div class="row"><span class="small muted">Should this become a full entry?</span><button class="btn" data-v="yes">Yes</button><button class="btn" data-v="no">No</button><span class="small muted" aria-live="polite">${c.yes + c.no ? `${c.yes} yes, ${c.no} no` : ""}</span></div></div>`).join("");
   const tr = trials.length ? `<h2>Wording trials</h2><p class="muted small">Where a re-worded explanation is being tested against the original on "did this change how you see it".</p>${trials.map(t => `<div class="src"><a href="/e/${esc(t.entry)}">${esc((byId[t.entry] || {}).belief || t.entry)}</a> <span class="tag">${esc(t.arm === "control" ? "original" : "new wording")}</span> <span class="tag">${esc(t.status)}</span> <span class="small muted">${t.yes} of ${t.total} shifted</span><br><span class="small">${esc(t.text)}</span></div>`).join("")}` : "";
@@ -211,6 +219,33 @@ fetch('/api/candidate-vote',{method:'POST',headers:{'content-type':'application/
 <div class="stats"><div><b>${(metrics.candidates && metrics.candidates.drafted) || 0}</b><span class="small muted">drafts open</span></div><div><b>${metrics.reviews_classified || 0}</b><span class="small muted">new reviews labelled</span></div><div><b>${(metrics.wording_trials && metrics.wording_trials.winner) || 0}</b><span class="small muted">better wordings kept</span></div></div>
 ${items || `<p class="muted">No drafts yet. The loop searches once a day; drafts appear here as it finds reviews that test a popular belief.</p>`}${tr}
 <p class="small"><a href="/how">How the loops work</a> · <a href="/api/candidates.json">/api/candidates.json</a></p>`, { script: js, path: "/lab", desc: "Candidate beliefs Unlearn's loop found in new research reviews, waiting for readers' votes." });
+}
+
+export const draftCard = c => `<a class="card" href="/d/${c.id}" style="--h:95"><span class="tag">Lab draft</span><span class="belief">${esc(c.draft.belief)}</span><span class="small muted">From one paper, not yet graded</span></a>`;
+export function draftPage(c) {
+  const d = c.draft;
+  const body = `<p class="small"><a href="/lab">Lab</a></p><div class="step warnbox"><div class="k">Draft from one paper</div><p style="margin:0">The loop wrote this from one paper's abstract and readers voted it up. It has not been graded like the encyclopedia's entries: the quoted sentence below is from the abstract, and the citation comes from the research index, not from the model.</p></div>
+<p class="small muted" style="margin:0">The belief</p><blockquote class="b" style="--h:95">${esc(d.belief)}</blockquote>
+${d.story ? `<ol class="timeline"><li><span class="k">The famous story</span>${esc(d.story)}</li><li><span class="k">What this paper found</span>${esc(d.later)}</li></ol>` : `<div class="step"><div class="k">What this paper found</div><p style="margin:0">${esc(d.says)}</p></div>`}
+<div class="step"><div class="k">In the paper's own words</div><blockquote class="q">${esc(d.quote)}</blockquote><p class="small"><a href="${esc(c.url)}">${esc(c.title)}</a> <span class="muted">${esc(c.venue)}${c.year ? ", " + c.year : ""}</span></p></div>
+<p class="small muted">${c.yes} readers said this should become a full entry, ${c.no} said no.</p><p><a class="btn" href="/lab">More in the Lab</a> <a class="btn" href="/today">Myth of the day</a></p>`;
+  return layout(d.belief + " · Lab draft · Unlearn", body, { path: "/d/" + c.id, desc: "Lab draft from one paper: " + d.belief });
+}
+
+// Atom feed: the myth of the day for the last 30 days, and Lab drafts readers voted up. Ids are stable, so readers see each item once.
+const xesc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
+export function feed(now, drafts = [], pick = null) {
+  const base = "https://unlearn.ultrastable.org", day = Math.floor(now / 86400000);
+  const items = [];
+  for (let k = 0; k < 30; k++) {
+    const t = (day - k) * 86400000, e = (pick || mythOfDay)(t);
+    if (!e) continue;
+    items.push({ id: `${base}/today/${new Date(t).toISOString().slice(0, 10)}`, url: `${base}/e/${e.id}`, at: new Date(t).toISOString(), title: "Myth of the day: " + e.belief, text: e.says });
+  }
+  for (const c of drafts) items.push({ id: `${base}/d/${c.id}`, url: `${base}/d/${c.id}`, at: new Date(c.found).toISOString(), title: "Lab draft: " + c.draft.belief, text: (c.draft.later || c.draft.says) + " (Draft from one paper, not yet graded.)" });
+  items.sort((a, b) => b.at.localeCompare(a.at));
+  return `<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title>Unlearn: myth of the day</title><link href="${base}/"/><link rel="self" href="${base}/feed.xml"/><id>${base}/feed.xml</id><updated>${items.length ? items[0].at : new Date(now).toISOString()}</updated>
+${items.map(i => `<entry><title>${xesc(i.title)}</title><link href="${xesc(i.url)}"/><id>${xesc(i.id)}</id><updated>${i.at}</updated><summary>${xesc(i.text)}</summary></entry>`).join("\n")}</feed>`;
 }
 
 export function notFound() {
