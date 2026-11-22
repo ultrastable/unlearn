@@ -141,7 +141,7 @@ test('famous findings, retold: entries carry a then-and-now timeline, and retold
   const page = await (await handle(get('/e/milgram-obedience'), { DB: d1() })).text();
   assert.match(page, /class="timeline"/); assert.match(page, /The famous story/);
   assert.equal(ENTRIES.find(e => e.id === 'milgram-obedience').direction, 'complicates', 'Milgram partly replicates, and is graded that way');
-  assert.deepEqual(SEARCHES.map(x => x.kind), ['myth', 'retold']);
+  assert.deepEqual(SEARCHES.map(x => x.kind), ['myth', 'retold', 'practice']);
   const c = { kind: 'retold', title: 'Order-maintenance policing revisited', abstract: ABSTRACT };
   const ok = checkDraft(JSON.stringify({ belief: 'Cracking down on small offences prevents serious crime.', story: 'A famous study was taken to show that cracking down on disorder prevents crime.', later: 'Aggressive arrests for minor disorder did not reduce serious crime in most cities studied.', says: 'Aggressive arrests for minor disorder did not reduce serious crime.', quote: QUOTE }), c);
   assert.equal(ok.ok, true); assert.match(ok.draft.story, /famous study/);

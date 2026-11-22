@@ -1060,3 +1060,9 @@ export const METHOD = [
   { cite: "Nyhan (2021), Why the backfire effect does not explain the durability of political misperceptions, PNAS", applies: "Beliefs persist through identity and repetition, so each entry states the belief once and spends its words on the evidence." },
   { cite: "Roediger and Karpicke (2006), Test-enhanced learning, Psychological Science", applies: "Readers make a guess before seeing the evidence. Predicting first makes the answer stick and shows the reader where their intuition stood." }
 ];
+
+// The change layer (practices.js): evidence-graded practices are full entries in their own categories, and some myth entries carry a kit.
+import { PRACTICE_CATEGORIES, PRACTICES, KITS } from "./practices.js";
+CATEGORIES.push(...PRACTICE_CATEGORIES);
+ENTRIES.push(...PRACTICES);
+for (const e of ENTRIES) if (KITS[e.id]) e.change = KITS[e.id];

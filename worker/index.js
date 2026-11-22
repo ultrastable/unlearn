@@ -14,7 +14,8 @@ import { ENTRIES, CATEGORIES } from "./entries.js";
 import { checkEntries, freshness, reviewQueue } from "./evidence.js";
 import { LAB, triagePrompt, checkTriage, regrade, discover, draftPrompt, checkDraft, variantPrompt, checkVariant, decide, pickForVariant, SEARCHES, publishable, mythOfDay, dayIndex } from "./lab.js";
 import { socialQueue } from "./promote.js";
-import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage, draftPage, feed } from "./site.js";
+import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage, draftPage, feed, changePage, planPage } from "./site.js";
+import { eventKey, practiceStats } from "./change.js";
 
 const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS explorations (id TEXT PRIMARY KEY, token TEXT UNIQUE NOT NULL, created INTEGER NOT NULL, topic TEXT NOT NULL, age TEXT, move_id TEXT NOT NULL, move_text TEXT NOT NULL, reworded INTEGER NOT NULL DEFAULT 0, f7 INTEGER, f14 INTEGER, adult TEXT, grp TEXT, pseudonym TEXT)",
@@ -142,7 +143,15 @@ export async function encyclopediaMetrics(db, now = Date.now()) {
   const surprising = Object.entries(per).filter(([, v]) => v.g >= 5).map(([entry, v]) => ({ entry, surprise: v.w / v.g, guesses: v.g })).sort((a, b) => b.surprise - a.surprise).slice(0, 6);
   return { entries: ENTRIES.length, categories: CATEGORIES.length, sources_total, sources_resolved: (src && src.d) || 0, leads: (leads && leads.n) || 0,
     entries_fresh: fresh.checked, evidence_fresh_share: fresh.checked / fresh.entries, guesses, surprise_share: guesses ? wrong / guesses : null,
-    shift_answers: shiftAll, shift_share: shiftAll ? shiftYes / shiftAll : null, surprising, lab: await labMetrics(db) };
+    shift_answers: shiftAll, shift_share: shiftAll ? shiftYes / shiftAll : null, surprising, lab: await labMetrics(db), change: changeMetrics(await planStats(db)) };
+}
+export function changeMetrics(st) {
+  const v = Object.values(st), started = v.reduce((n, s) => n + s.started, 0), kept = v.reduce((n, s) => n + s.kept, 0), stopped = v.reduce((n, s) => n + s.stopped, 0);
+  const done = v.reduce((n, s) => n + s.done, 0), missed = v.reduce((n, s) => n + s.missed, 0);
+  return { practices: ENTRIES.filter(e => e.change).length, trials_started: started, trials_kept: kept, trials_stopped: stopped, keep_share: kept + stopped ? kept / (kept + stopped) : null, checkin_done_share: done + missed ? done / (done + missed) : null };
+}
+export async function planStats(db) {
+  return practiceStats((await db.prepare("SELECT entry, key, n FROM reader_counts WHERE key LIKE 'plan:%'").all()).results || [], byId);
 }
 export async function labMetrics(db) {
   const g = Object.values(await grades(db));
@@ -352,6 +361,12 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
         return html(entryPage(e, { dois: await doiMap(db, e.id), leads, counts: await readerCounts(db, e.id), grade: g, slip: w.slip, variant: w.variant }), 200, true);
       }
     }
+    if (p === "/change") return html(changePage({ stats: await planStats(db), grades: await grades(db) }), 200, true);
+    if (p === "/plan") return html(planPage());
+    if (p === "/api/practices.json") {
+      const st = await planStats(db);
+      return J({ ok: true, practices: ENTRIES.filter(e => e.change).map(e => ({ id: e.id, url: "https://unlearn.ultrastable.org/e/" + e.id, name: e.change.name, belief: e.belief, strength: e.strength, direction: e.direction, days: e.change.days, tiny: e.change.tiny, plans: e.change.plans.map(([when, then]) => ({ when, then })), readers: st[e.id] || { started: 0, kept: 0, stopped: 0, done: 0, missed: 0 } })) });
+    }
     if (p === "/search") return html(searchPage(u.searchParams.get("q") || ""));
     if (p === "/play") return html(playPage());
     if (p === "/how") return html(howPage({ fresh: freshness(await checkedMap(db), now), metrics: await encyclopediaMetrics(db, now) }));
@@ -384,6 +399,13 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     if (!(await allowTap(db, req))) return J({ ok: true, counted: false });
     await db.prepare("INSERT INTO reader_counts (entry, key, n) VALUES (?1, ?2, 1) ON CONFLICT(entry, key) DO UPDATE SET n = n + 1").bind(e.id, "shift:" + b.shift).run();
     if (Number.isInteger(b.variant)) await db.prepare("UPDATE variants SET total = total + 1, yes = yes + ?1 WHERE id=?2 AND entry=?3 AND status='trial'").bind(b.shift === "no" ? 0 : 1, b.variant, e.id).run();
+    return J({ ok: true, counted: true });
+  }
+  if (u.pathname === "/api/plan" && req.method === "POST") {  // UNLEARN-CHANGE-1: anonymous trial events per practice; the plan itself never leaves the browser
+    const b = await body(req); const e = b && byId[b.entry]; const key = e ? eventKey(e, b.event, b.plan) : null;
+    if (!key) return say("bad", "That is not a step of a trial.");
+    if (!(await allowTap(db, req))) return J({ ok: true, counted: false });
+    await db.prepare("INSERT INTO reader_counts (entry, key, n) VALUES (?1, ?2, 1) ON CONFLICT(entry, key) DO UPDATE SET n = n + 1").bind(e.id, key).run();
     return J({ ok: true, counted: true });
   }
   if (u.pathname === "/api/candidate-vote" && req.method === "POST") {

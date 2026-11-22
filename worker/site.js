@@ -6,6 +6,8 @@
 import { ENTRIES, CATEGORIES, STRENGTH, DIRECTION, DESIGN, METHOD, FORMAT } from "./entries.js";
 import { EVIDENCE } from "./evidence.js";
 import { LAB, mythOfDay } from "./lab.js";
+import { CHANGE, REASONS, rankPlans } from "./change.js";
+import { OVERSOLD } from "./practices.js";
 import { SIBLINGS } from "./promote.js";
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -62,13 +64,16 @@ blockquote.b{font-size:clamp(1.3rem,3.5vw,1.8rem);font-weight:700;line-height:1.
 .okbox{border-color:var(--ok)}.warnbox{border-color:var(--warn)}blockquote.q{margin:6px 0;padding-left:10px;border-left:3px solid var(--line);color:var(--muted);font-style:italic}
 ol.timeline{list-style:none;margin:14px 0;padding:0 0 0 18px;border-left:3px solid var(--accent)}ol.timeline li{position:relative;margin:0 0 12px}ol.timeline li::before{content:"";position:absolute;left:-26px;top:6px;width:13px;height:13px;border-radius:99px;background:var(--accent)}ol.timeline .k{display:block;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;color:var(--accent)}
 .today .card{max-width:560px}
+fieldset.plans{border:0;padding:0;margin:8px 0;display:grid;gap:8px}label.opt{display:flex;gap:10px;align-items:flex-start;min-height:44px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer}label.opt input{margin-top:5px}
+.kit input[type=text],.kit input:not([type]),[data-ed] input,#own input{font:inherit;min-height:44px;width:100%;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);margin:2px 0 8px}
+.dots{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 10px}.dots i{width:16px;height:16px;border-radius:4px;background:var(--line)}.dots i.y{background:var(--ok)}.dots i.p{background:var(--warn)}.dots i.n{background:transparent;border:2px solid var(--line)}
 [hidden]{display:none!important}@media (prefers-reduced-motion:reduce){*{transition:none!important}}`;
 
 export function layout(title, body, { desc = "", script = "", path = "/" } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc || "Unlearn: popular beliefs where the evidence points another way, with graded evidence and named sources.")}">
 <link rel="canonical" href="https://unlearn.ultrastable.org${esc(path)}"><link rel="alternate" type="application/atom+xml" title="Unlearn: myth of the day" href="/feed.xml"><style>${CSS}</style></head><body>
-<header class="top"><nav aria-label="Main"><a class="brand" href="/">Un<span>learn</span></a><a href="/today">Today</a><a href="/topics">Topics</a><a href="/play">Play</a><a href="/lab">Lab</a><a href="/how">How it works</a><a href="/coach">Coach a child</a></nav></header>
+<header class="top"><nav aria-label="Main"><a class="brand" href="/">Un<span>learn</span></a><a href="/today">Today</a><a href="/topics">Topics</a><a href="/change">Change</a><a href="/play">Play</a><a href="/lab">Lab</a><a href="/how">How it works</a><a href="/coach">Coach a child</a></nav></header>
 <main>${body}</main>
 <footer>Unlearn runs on <a href="https://ultrastable.io">Ultrastable</a>, the foundation for any autonomous system. Every entry cites its sources; an hourly loop checks them and watches for new reviews. Data: <a href="/api/entries.json">/api/entries.json</a>. Follow along: <a href="/feed.xml">feed</a>.${SIBLINGS.length ? ` Also run on Ultrastable: ${SIBLINGS.map(x => `<a href="${esc(x.home)}">${esc(x.name)}</a>`).join(", ")}.` : ""}</footer>
 ${script ? `<script>${script}</script>` : ""}</body></html>`;
@@ -86,7 +91,7 @@ const badge = g => g && g.status === "reinforced" ? `<span class="badge ok">Rein
 export function card(e, grades = {}) {
   const c = catOf(e.cat), g = grades[e.id], st = shown(e, g);
   return `<a class="card" href="/e/${esc(e.id)}" style="--h:${c.hue}" data-strength="${esc(st)}" data-dir="${esc(e.direction)}" data-cat="${esc(e.cat)}">
-<span class="tag">${esc(c.name)}</span><span class="belief">${esc(e.belief)}</span><span class="row">${meter(st)} <span class="small muted">${esc(STRENGTH[st].name)} evidence</span></span>${dir(e.direction)}${badge(g)}</a>`;
+<span class="tag">${esc(c.name)}</span><span class="belief">${esc(e.belief)}</span><span class="row">${meter(st)} <span class="small muted">${esc(STRENGTH[st].name)} evidence</span></span>${dir(e.direction)}${badge(g)}${e.change ? `<span class="badge ok">Try it: ${esc(e.change.days)}-day trial</span>` : ""}</a>`;
 }
 
 const FILTERS = `<div class="chips" role="group" aria-label="Filter by evidence"><button aria-pressed="true" data-f="all">All</button><button aria-pressed="false" data-f="strong">Strong evidence</button><button aria-pressed="false" data-f="moderate">Moderate</button><button aria-pressed="false" data-f="mixed">Split or limited</button></div>`;
@@ -95,7 +100,8 @@ const FILTER_JS = `document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()
 export function home({ stats = {}, surprising = [], grades = {}, today = null, drafts = [] } = {}) {
   const C = e => card(e, grades);
   const nSrc = ENTRIES.reduce((n, e) => n + e.sources.length, 0);
-  const tiles = CATEGORIES.map(c => `<a class="tile" href="/topics/${c.id}" style="--h:${c.hue}"><span class="n">${ENTRIES.filter(e => e.cat === c.id).length}</span><b>${esc(c.name)}</b><span class="small muted">${esc(c.blurb)}</span></a>`).join("");
+  const tile = c => `<a class="tile" href="/topics/${c.id}" style="--h:${c.hue}"><span class="n">${ENTRIES.filter(e => e.cat === c.id).length}</span><b>${esc(c.name)}</b><span class="small muted">${esc(c.blurb)}</span></a>`;
+  const tiles = CATEGORIES.filter(c => c.kind !== "change").map(tile).join(""), ctiles = CATEGORIES.filter(c => c.kind === "change").map(tile).join("");
   const surp = surprising.length ? `<h2>Most surprising so far</h2><p class="muted small">Entries where most readers guessed wrong before seeing the evidence. Measured from anonymous taps.</p><div class="grid">${surprising.map(x => C(byId[x.entry])).join("")}</div>` : "";
   return layout("Unlearn: what the evidence says about what everyone knows", `<section class="hero">
 <h1>Some of what everyone knows is wrong.</h1>
@@ -104,7 +110,8 @@ export function home({ stats = {}, surprising = [], grades = {}, today = null, d
 <div class="stats"><div><b>${ENTRIES.length}</b><span class="small muted">beliefs examined</span></div><div><b>${nSrc}</b><span class="small muted">studies cited</span></div><div><b>${stats.leads ?? 0}</b><span class="small muted">new reviews found by the loop</span></div><div><b>${stats.guesses ?? 0}</b><span class="small muted">guesses made</span></div></div>
 <form class="pill" action="/search" role="search"><input name="q" aria-label="Search beliefs" placeholder="Search: prison, sugar, memory, minimum wage"><button class="btn primary" type="submit">Search</button></form></section>
 ${today ? `<h2>Myth of the day</h2><div class="today">${card(today, grades)}<p class="small muted">A new one every day, in a fixed order that goes through every entry before any repeats. <a href="/feed.xml">Follow the feed</a>.</p></div>` : ""}
-<h2>Topics</h2><div class="tiles">${tiles}</div>${surp}${drafts.length ? `<h2>New from the Lab</h2><p class="muted small">Drafts the loop wrote from new research and readers voted up. Each is from one paper and not yet graded.</p><div class="grid">${drafts.map(draftCard).join("")}</div>` : ""}
+<h2>Topics</h2><div class="tiles">${tiles}</div>
+<h2>Change what you do</h2><p class="muted small">Practices where the evidence says the usual way of trying to change is not the one that works, each with a small trial you can start in a minute. <a href="/change">See all</a> · <a href="/plan">My plans</a></p><div class="tiles">${ctiles}</div>${surp}${drafts.length ? `<h2>New from the Lab</h2><p class="muted small">Drafts the loop wrote from new research and readers voted up. Each is from one paper and not yet graded.</p><div class="grid">${drafts.map(draftCard).join("")}</div>` : ""}
 <h2>All entries</h2>${FILTERS}<div class="grid">${ENTRIES.map(C).join("")}</div>`, { script: FILTER_JS, desc: "Popular beliefs where the evidence points another way: graded evidence, named sources, and a loop that keeps checking them." });
 }
 
@@ -143,6 +150,7 @@ ${e.classic ? `<ol class="timeline" aria-label="The famous story and what came l
 ${leadHtml}
 <div class="step" id="shift" data-entry="${esc(e.id)}"${variant ? ` data-variant="${variant}"` : ""}><div class="k">Did this change how you see it?</div><div class="row"><button class="btn" data-s="yes">Yes</button><button class="btn" data-s="some">A little</button><button class="btn" data-s="no">No</button></div><p class="small muted" id="sr" aria-live="polite"></p></div>
 </details>
+${kit(e, counts)}
 ${rel.length ? `<h2>Related</h2><div class="grid">${rel.map(x => card(x)).join("")}</div>` : ""}`;
   const js = `const G=document.getElementById('guess'),A=+G.dataset.answer,E=G.dataset.entry;let done=false;
 G.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(done)return;done=true;const i=+b.dataset.i;G.querySelectorAll('button').forEach(x=>{const j=+x.dataset.i;if(j===A)x.classList.add('right');else if(j===i)x.classList.add('wrong')});
@@ -150,7 +158,7 @@ document.getElementById('gr').textContent=(i===A?'You called it. Here is the evi
 fetch('/api/guess',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({entry:E,choice:i})}).catch(()=>{})});
 const S=document.getElementById('shift');document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-s]').forEach(x=>x.disabled=true);document.getElementById('sr').textContent='Thanks. Counted anonymously.';
 fetch('/api/shift',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.assign({entry:E,shift:b.dataset.s},S.dataset.variant?{variant:+S.dataset.variant}:{}))}).catch(()=>{})});`;
-  return layout(e.belief + " · Unlearn", body, { script: STREAK_JS + js, path: "/e/" + e.id, desc: "Belief: " + e.belief + " " + DIRECTION[e.direction].name + " (" + STRENGTH[st].name.toLowerCase() + " evidence)." });
+  return layout(e.belief + " · Unlearn", body, { script: STREAK_JS + js + (e.change ? STORE_JS + KIT_JS : ""), path: "/e/" + e.id, desc: "Belief: " + e.belief + " " + DIRECTION[e.direction].name + " (" + STRENGTH[st].name.toLowerCase() + " evidence)." });
 }
 
 export function searchPage(q) {
@@ -194,11 +202,13 @@ ${Object.entries(DIRECTION).map(([k, d]) => `<div class="src">${dir(k)}. ${esc(d
 ${metrics.lab ? `<div class="stats"><div><b>${metrics.lab.reviews_classified}</b><span class="small muted">new reviews read and labelled</span></div><div><b>${metrics.lab.entries_reinforced}</b><span class="small muted">entries reinforced</span></div><div><b>${metrics.lab.entries_challenged}</b><span class="small muted">entries under review</span></div><div><b>${metrics.lab.candidates.drafted || 0}</b><span class="small muted">candidate beliefs in the Lab</span></div></div>` : ""}
 <h2>Why "Unlearn"</h2><p>The name comes from a line in Rutger Bregman's <i>Humankind</i>, chapter "Homo Ludens": coaches at the Agora school "have to unlearn much of their training as teachers." The same applies to all of us. Unlearn also keeps its original tool for the adults around curious children: <a href="/coach">coach a child's curiosity</a>.</p>
 <h2>Something new every day</h2><p>Each day has a <a href="/today">myth of the day</a>, in a fixed order that goes through every entry before any repeats, and it is in the <a href="/feed.xml">feed</a> with the Lab drafts readers vote up. Daily discovery also searches for replications and re-analyses of famous studies, the "famous finding, retold" kind, and drafts them for the Lab with a then-and-now timeline.</p>
-<h2>What it keeps</h2><p>No accounts and no cookies. A guess or a "did this change your view" tap is counted per entry with nothing that identifies the reader. Your daily streak is kept only in your own browser's storage and is never sent anywhere.</p>`, { path: "/how" });
+<h2>From believing to doing</h2><p>Unlearning a belief is half the job. The <a href="/change">change layer</a> holds practices where the evidence says the common way of trying to change is not the one that works, graded like every entry, each with a small trial: a tiny first step, an if-then plan (picked from suggestions or written yourself), a dot a day, reflections on days ${CHANGE.review_days.join(", ")} that name what got in the way and suggest an adjustment, and an optional reminder or message to a friend. Suggested plans are re-ordered by how often readers who picked them chose to keep going. Daily discovery also searches for reviews of things people can do themselves and drafts candidate practices for the Lab. Claims that did not replicate, like power posing and ego depletion, are listed as oversold and never get a trial.</p>
+${metrics.change && metrics.change.trials_started ? `<div class="stats"><div><b>${metrics.change.trials_started}</b><span class="small muted">trials started</span></div><div><b>${metrics.change.keep_share === null ? "n/a" : Math.round(metrics.change.keep_share * 100) + "%"}</b><span class="small muted">of finished trials kept going</span></div></div>` : ""}
+<h2>What it keeps</h2><p>No accounts and no cookies. Your trials, check-ins and reflections live only in your browser's storage; the server counts only that a trial started, a day was checked in, or a trial was kept or stopped, per practice, with nothing that identifies you. A guess or a "did this change your view" tap is counted per entry with nothing that identifies the reader. Your daily streak is kept only in your own browser's storage and is never sent anywhere.</p>`, { path: "/how" });
 }
 
 export function sitemap(drafts = []) {
-  const urls = ["/", "/topics", "/play", "/lab", "/how", "/coach", ...drafts.map(id => "/d/" + id), ...CATEGORIES.map(c => "/topics/" + c.id), ...ENTRIES.map(e => "/e/" + e.id)];
+  const urls = ["/", "/topics", "/change", "/plan", "/play", "/lab", "/how", "/coach", ...drafts.map(id => "/d/" + id), ...CATEGORIES.map(c => "/topics/" + c.id), ...ENTRIES.map(e => "/e/" + e.id)];
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `<url><loc>https://unlearn.ultrastable.org${u}</loc></url>`).join("")}</urlset>`;
 }
 
@@ -209,7 +219,7 @@ export function entryJson(e, dois = {}) {
 }
 
 export function labPage({ candidates = [], trials = [], metrics = {} } = {}) {
-  const items = candidates.map(c => `<div class="step" data-c="${c.id}"><div class="k">Candidate belief</div><blockquote class="b" style="--h:300">${esc(c.draft.belief)}</blockquote>
+  const items = candidates.map(c => `<div class="step" data-c="${c.id}"><div class="k">Candidate belief</div><blockquote class="b" style="--h:300">${esc(c.draft.belief)}</blockquote>${c.draft.practice ? `<p class="small"><span class="tag">Candidate practice</span> <b>${esc(c.draft.practice)}</b></p>` : ""}
 ${c.draft.story ? `<ol class="timeline"><li><span class="k">The famous story</span>${esc(c.draft.story)}</li><li><span class="k">What this paper found</span>${esc(c.draft.later)}</li></ol>` : `<p style="margin:0">${esc(c.draft.says)}</p>`}<blockquote class="q">${esc(c.draft.quote)}</blockquote>${c.published ? `<p class="small"><a href="/d/${c.id}">Readers voted this up: it has its own page</a></p>` : ""}
 <p class="small"><a href="${esc(c.url)}">${esc(c.title)}</a> <span class="muted">${esc(c.venue)}${c.year ? ", " + c.year : ""}</span></p>
 <div class="row"><span class="small muted">Should this become a full entry?</span><button class="btn" data-v="yes">Yes</button><button class="btn" data-v="no">No</button><span class="small muted" aria-live="polite">${c.yes + c.no ? `${c.yes} yes, ${c.no} no` : ""}</span></div></div>`).join("");
@@ -222,11 +232,11 @@ ${items || `<p class="muted">No drafts yet. The loop searches once a day; drafts
 <p class="small"><a href="/how">How the loops work</a> · <a href="/api/candidates.json">/api/candidates.json</a></p>`, { script: js, path: "/lab", desc: "Candidate beliefs Unlearn's loop found in new research reviews, waiting for readers' votes." });
 }
 
-export const draftCard = c => `<a class="card" href="/d/${c.id}" style="--h:95"><span class="tag">Lab draft</span><span class="belief">${esc(c.draft.belief)}</span><span class="small muted">From one paper, not yet graded</span></a>`;
+export const draftCard = c => `<a class="card" href="/d/${c.id}" style="--h:95"><span class="tag">${c.draft.practice ? "Lab practice: " + esc(c.draft.practice) : "Lab draft"}</span><span class="belief">${esc(c.draft.belief)}</span><span class="small muted">From one paper, not yet graded</span></a>`;
 export function draftPage(c) {
   const d = c.draft;
   const body = `<p class="small"><a href="/lab">Lab</a></p><div class="step warnbox"><div class="k">Draft from one paper</div><p style="margin:0">The loop wrote this from one paper's abstract and readers voted it up. It has not been graded like the encyclopedia's entries: the quoted sentence below is from the abstract, and the citation comes from the research index, not from the model.</p></div>
-<p class="small muted" style="margin:0">The belief</p><blockquote class="b" style="--h:95">${esc(d.belief)}</blockquote>
+<p class="small muted" style="margin:0">The belief</p><blockquote class="b" style="--h:95">${esc(d.belief)}</blockquote>${d.practice ? `<p><span class="tag">What the paper found helps</span> <b>${esc(d.practice)}</b></p>` : ""}
 ${d.story ? `<ol class="timeline"><li><span class="k">The famous story</span>${esc(d.story)}</li><li><span class="k">What this paper found</span>${esc(d.later)}</li></ol>` : `<div class="step"><div class="k">What this paper found</div><p style="margin:0">${esc(d.says)}</p></div>`}
 <div class="step"><div class="k">In the paper's own words</div><blockquote class="q">${esc(d.quote)}</blockquote><p class="small"><a href="${esc(c.url)}">${esc(c.title)}</a> <span class="muted">${esc(c.venue)}${c.year ? ", " + c.year : ""}</span></p></div>
 <p class="small muted">${c.yes} readers said this should become a full entry, ${c.no} said no.</p><p><a class="btn" href="/lab">More in the Lab</a> <a class="btn" href="/today">Myth of the day</a></p>`;
@@ -251,4 +261,96 @@ ${items.map(i => `<entry><title>${xesc(i.title)}</title><link href="${xesc(i.url
 
 export function notFound() {
   return layout("Not found · Unlearn", `<h1>Nothing here</h1><p class="lede">That page does not exist. Try a topic, or search.</p><form class="pill" action="/search" role="search"><input name="q" aria-label="Search beliefs"><button class="btn primary" type="submit">Search</button></form><p><a class="btn" href="/topics">Browse topics</a></p>`);
+}
+
+// ---- the change layer (UNLEARN-CHANGE-1): kits on practice pages, /change and /plan. Personal data stays in this browser. ------------------
+const STORE_JS = `const PK='unlearn-plans';function plans(){try{return JSON.parse(localStorage.getItem(PK)||'[]')}catch(e){return[]}}
+function savePlans(p){try{localStorage.setItem(PK,JSON.stringify(p));return true}catch(e){return false}}
+function today(){return Math.floor(Date.now()/864e5)}const h=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function ev(entry,event,plan){fetch('/api/plan',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({entry:entry,event:event,plan:plan})}).catch(()=>{})}
+function cal(p){const d=new Date(today()*864e5).toISOString().slice(0,10).replace(/-/g,''),c=s=>String(s).replace(/[\\\;,]/g,m=>'\\\\'+m);
+const t=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Unlearn//Plan//EN','BEGIN:VEVENT','UID:'+d+'-'+p.entry+'@unlearn.ultrastable.org','DTSTAMP:'+d+'T000000Z','DTSTART;VALUE=DATE:'+d,'RRULE:FREQ=DAILY;COUNT='+p.days,'SUMMARY:'+c(p.name),'DESCRIPTION:'+c('When '+p.when+', '+p.then+'. Check in at https://unlearn.ultrastable.org/plan'),'END:VEVENT','END:VCALENDAR'].join('\\r\\n');
+const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/calendar'}));a.download='unlearn-plan.ics';document.body.appendChild(a);a.click();a.remove()}
+function tell(p,out){const t='My plan for the next '+p.days+' days: when '+p.when+', I will '+p.then+'. Will you ask me how it went in a week?';
+if(navigator.share)navigator.share({text:t}).catch(()=>{});else if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>{if(out)out.textContent='Copied. Paste it to someone you trust.'}).catch(()=>{})}`;
+
+export function kit(e, counts = {}) {
+  if (!e.change) return "";
+  const k = e.change, ranked = rankPlans(k, counts);
+  const started = Object.entries(counts).filter(([x]) => x.startsWith("plan:start")).reduce((n, [, v]) => n + v, 0);
+  const kept = Object.entries(counts).filter(([x]) => x.startsWith("plan:keep")).reduce((n, [, v]) => n + v, 0);
+  return `<section class="step kit" id="kit" data-entry="${esc(e.id)}" data-name="${esc(k.name)}" data-days="${k.days}"><div class="k">Put it to work: try it for ${k.days} days</div>
+<p style="margin:0 0 8px"><b>Start tiny.</b> ${esc(k.tiny)}</p>
+<p class="small muted">Decide exactly when you will do it. People who plan when and where follow through more often than people who only intend to (<a href="/e/if-then-plans">the evidence</a>).</p>
+<fieldset class="plans"><legend class="small"><b>Pick a plan</b>${started >= CHANGE.min_shown ? ` <span class="muted">(ordered by how often readers kept going with it)</span>` : ""}</legend>
+${ranked.map((p, n) => `<label class="opt"><input type="radio" name="pl" value="${p.i}" data-w="${esc(p.when)}" data-t="${esc(p.then)}"${n === 0 ? " checked" : ""}> <span>When ${esc(p.when)}, ${esc(p.then)}.</span></label>`).join("")}
+<label class="opt"><input type="radio" name="pl" value="own"> <span>Write my own</span></label>
+<div id="own" hidden><label class="small">When <input id="ow" maxlength="120" placeholder="a moment that happens every day"></label><label class="small">I will <input id="ot" maxlength="120" placeholder="one small action"></label></div></fieldset>
+<div class="row"><button class="btn primary" id="go" type="button">Start my ${k.days}-day trial</button><a class="btn" href="/plan">My plans</a></div>
+<p class="small muted" id="ks" aria-live="polite">Saved only in this browser. Nothing about you is sent; we count only that a trial started.${started >= CHANGE.min_shown ? ` ${started} readers started this; ${kept} chose to keep going.` : ""}</p>
+<div id="after" class="row" hidden><a class="btn primary" href="/plan">Check in</a><button class="btn" id="cal" type="button">Add a daily reminder</button><button class="btn" id="tell" type="button">Tell someone</button></div>
+<noscript><p class="small">The trial needs script; the plan above works on paper too.</p></noscript></section>`;
+}
+const KIT_JS = `(function(){const K=document.getElementById('kit');if(!K)return;const E=K.dataset.entry,$=id=>document.getElementById(id);
+K.querySelectorAll('input[name=pl]').forEach(r=>r.onchange=()=>{$('own').hidden=r.value!=='own'||!r.checked});
+function cur(){return plans().find(p=>p.entry===E&&p.status==='active')}
+function done(p){$('after').hidden=false;$('go').hidden=true;$('ks').textContent='Day '+(today()-p.start+1)+' of '+p.days+': when '+p.when+', '+p.then+'. Saved only in this browser.'}
+const c=cur();if(c)done(c);
+$('go').onclick=()=>{const r=K.querySelector('input[name=pl]:checked');if(!r)return;let when,then,pl;
+if(r.value==='own'){when=$('ow').value.trim();then=$('ot').value.trim();pl='own';if(!when||!then){$('ks').textContent='Fill in both parts: when, and what you will do.';return}}
+else{when=r.dataset.w;then=r.dataset.t;pl=+r.value}
+const p={entry:E,name:K.dataset.name,when:when,then:then,plan:pl,start:today(),days:+K.dataset.days,marks:{},reviews:{},status:'active'};
+const all=plans().filter(x=>!(x.entry===E&&x.status==='active'));all.push(p);if(!savePlans(all)){$('ks').textContent='This browser is not letting the page save. Write the plan down instead: when '+when+', '+then+'.';return}
+ev(E,'start',pl);done(p)};
+$('cal').onclick=()=>{const p=cur();if(p)cal(p)};$('tell').onclick=()=>{const p=cur();if(p)tell(p,$('ks'))}})();`;
+
+export function changePage({ stats = {}, grades = {} } = {}) {
+  const cats = CATEGORIES.filter(c => c.kind === "change");
+  const myths = ENTRIES.filter(e => e.change && !cats.some(c => c.id === e.cat));
+  const nPractices = ENTRIES.filter(e => e.change).length;
+  const started = Object.values(stats).reduce((n, s) => n + s.started, 0), kept = Object.values(stats).reduce((n, s) => n + s.kept, 0);
+  return layout("Change what you do · Unlearn", `<section class="hero"><h1>Change what you do, not only what you believe.</h1>
+<p class="lede">${nPractices} practices where the evidence says the usual way of trying to change is not the one that works. Each is graded like every other entry. Each comes with a small trial you can start in a minute: pick an if-then plan, check in each day, and reflect at spaced intervals. It all stays in your browser.</p>
+<div class="row" style="margin-bottom:18px"><a class="btn primary" href="/plan">My plans</a><a class="btn" href="/e/if-then-plans">Start with if-then plans</a></div>
+${started >= CHANGE.min_shown ? `<div class="stats"><div><b>${started}</b><span class="small muted">trials started</span></div><div><b>${kept}</b><span class="small muted">kept going after the trial</span></div></div>` : ""}</section>
+${cats.map(c => `<h2 id="${c.id}"><a href="/topics/${c.id}">${esc(c.name)}</a></h2><p class="muted">${esc(c.blurb)}</p><div class="grid">${ENTRIES.filter(e => e.cat === c.id).map(e => card(e, grades)).join("")}</div>`).join("")}
+${myths.length ? `<h2>From the myths</h2><p class="muted">Myth entries whose "what works instead" you can try.</p><div class="grid">${myths.map(e => card(e, grades)).join("")}</div>` : ""}
+<h2>Oversold: do not build a plan on these</h2><p class="muted">Popular self-improvement claims whose evidence did not hold up. They are here so you can spend your effort elsewhere.</p>
+<div class="grid">${OVERSOLD.filter(o => byId[o.id]).map(o => `<a class="card" href="/e/${esc(o.id)}" style="--h:12"><span class="tag">Oversold</span><span class="belief">${esc(byId[o.id].belief)}</span><span class="small">${esc(o.why)}</span></a>`).join("")}</div>
+<h2>How the trials work</h2><ol><li><b>A tiny first step and an if-then plan.</b> Deciding when and where you will act roughly doubles the follow-through of a good intention in many studies (<a href="/e/if-then-plans">evidence</a>).</li>
+<li><b>A dot a day.</b> Tracking the action, not the outcome, helps people reach goals (<a href="/e/monitor-progress">evidence</a>).</li>
+<li><b>Reflections spaced further apart</b> on days ${CHANGE.review_days.join(", ")}: name what got in the way and adjust the plan.</li>
+<li><b>No penalty for a missed day.</b> Habits take about two months and a single miss does not reset them (<a href="/e/habit-timeline">evidence</a>). Keeping going extends the trial to ${CHANGE.habit_days} days.</li>
+<li><b>Optional commitment.</b> Tell one person, or add a daily reminder to your calendar; both are made on your device (<a href="/e/commitment-devices">evidence</a>).</li></ol>`, { path: "/change", desc: "Evidence-graded practices that go against common advice, each with a small private trial you can start in a minute." });
+}
+
+export function planPage() {
+  const K = Object.fromEntries(ENTRIES.filter(e => e.change).map(e => [e.id, { name: e.change.name, days: e.change.days }]));
+  const js = `const K=${JSON.stringify(K).replace(/</g, "\\u003c")},RV=${JSON.stringify(CHANGE.review_days)},HD=${CHANGE.habit_days},RS=${JSON.stringify(REASONS.map(r => ({ id: r.id, label: r.label, tip: r.tip }))).replace(/</g, "\\u003c")};
+const L=document.getElementById('list');
+function save(p,i){const all=plans();all[i]=p;savePlans(all);draw()}
+function card(p,i){const d=today()-p.start+1,n=Math.min(d,p.days);let dots='';for(let k=Math.max(0,n-21);k<n;k++){const m=p.marks[p.start+k];dots+='<i class="'+(m||'')+'" title="Day '+(k+1)+'"></i>'}
+const did=Object.values(p.marks).filter(m=>m==='y'||m==='p').length,t=p.marks[today()];
+let x='<div class="step" data-i="'+i+'"><div class="k">'+h(p.name)+' · day '+Math.min(d,p.days)+' of '+p.days+'</div><p style="margin:0 0 6px"><b>When '+h(p.when)+', '+h(p.then)+'.</b></p><div class="dots" aria-label="'+did+' of '+n+' days done">'+dots+'</div>';
+if(d>p.days){x+='<p><b>Your '+p.days+' days are up.</b> You did it on '+did+' of them. What next?</p><div class="row"><button class="btn primary" data-a="keep">Keep going</button><button class="btn" data-a="edit">Change the plan</button><button class="btn" data-a="stop">Stop here</button></div>'}
+else{if(!t)x+='<div class="row"><span class="small muted">Today:</span><button class="btn primary" data-m="y">Did it</button><button class="btn" data-m="p">Partly</button><button class="btn" data-m="n">Not today</button></div>';else x+='<p class="small muted">Checked in today. See you tomorrow.</p>';
+if(d>1&&!p.marks[today()-1])x+='<p class="small muted">Missed a day? That does not undo a habit. Pick up at the next cue.</p>';
+const r=RV.find(v=>v<=d&&v<=p.days&&!p.reviews[v]);if(r)x+='<div class="step okbox"><div class="k">Day '+r+' reflection</div><p style="margin:0 0 6px">What has helped or got in the way most?</p><div class="row">'+RS.map(s=>'<button class="btn" data-r="'+s.id+'" data-v="'+r+'">'+h(s.label)+'</button>').join('')+'</div><p class="small" data-tip aria-live="polite"></p></div>'}
+x+='<div class="row small"><a href="/e/'+h(p.entry)+'">Why this works</a><button class="btn" data-a="edit">Edit plan</button><button class="btn" data-a="cal">Reminder</button><button class="btn" data-a="tell">Tell someone</button></div><div data-ed hidden><label class="small">When <input data-w maxlength="120" value="'+h(p.when)+'"></label><label class="small">I will <input data-t maxlength="120" value="'+h(p.then)+'"></label><button class="btn primary" data-a="saveed">Save and restart</button></div></div>';return x}
+function draw(){const all=plans(),act=all.map((p,i)=>[p,i]).filter(([p])=>p.status==='active'),old=all.map((p,i)=>[p,i]).filter(([p])=>p.status!=='active');
+L.innerHTML=act.length?act.map(([p,i])=>card(p,i)).join(''):'<p class="muted">No trials yet. <a href="/change">Pick a practice</a> and start one in a minute.</p>';
+document.getElementById('old').innerHTML=old.length?'<h2>Finished or stopped</h2>'+old.map(([p,i])=>'<div class="src">'+h(p.name)+': when '+h(p.when)+', '+h(p.then)+'. <span class="small muted">'+Object.values(p.marks).filter(m=>m!=='n').length+' days done.</span> <button class="btn" data-del="'+i+'">Remove</button></div>').join(''):'';
+L.querySelectorAll('[data-i]').forEach(el=>{const i=+el.dataset.i,p=plans()[i];
+el.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{p.marks[today()]=b.dataset.m;ev(p.entry,{y:'done',p:'partly',n:'miss'}[b.dataset.m]);save(p,i)});
+el.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{p.reviews[b.dataset.v]=b.dataset.r;ev(p.entry,'r:'+b.dataset.r);const s=RS.find(z=>z.id===b.dataset.r);const all=plans();all[i]=p;savePlans(all);el.querySelector('[data-tip]').textContent=s.tip;el.querySelectorAll('[data-r]').forEach(z=>z.disabled=true)});
+el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{const a=b.dataset.a;
+if(a==='keep'){ev(p.entry,'keep',p.plan);p.days=p.days<HD?HD:p.days+30;save(p,i)}else if(a==='stop'){ev(p.entry,'stop',p.plan);p.status='stopped';save(p,i)}
+else if(a==='edit'){el.querySelector('[data-ed]').hidden=false}else if(a==='cal')cal(p);else if(a==='tell')tell(p,null);
+else if(a==='saveed'){const w=el.querySelector('[data-w]').value.trim(),t=el.querySelector('[data-t]').value.trim();if(!w||!t)return;ev(p.entry,'change');Object.assign(p,{when:w,then:t,plan:'own',start:today(),marks:{},reviews:{},days:(K[p.entry]||{}).days||p.days});save(p,i)}})});
+document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const all=plans();all.splice(+b.dataset.del,1);savePlans(all);draw()})}
+document.getElementById('wipe').onclick=()=>{savePlans([]);draw()};draw();`;
+  return layout("My plans · Unlearn", `<h1>My plans</h1><p class="lede">Your trials, kept only in this browser. Check in once a day; every few days you get a short reflection to adjust the plan.</p>
+<div id="list"><noscript><p>Plans need script, because they live only on your device.</p></noscript></div><div id="old"></div>
+<p class="small muted">Nothing on this page is sent anywhere except anonymous counts (a trial started, a day checked in) per practice, with nothing that identifies you. <button class="btn" id="wipe" type="button">Delete everything on this device</button></p>
+<p><a class="btn" href="/change">More practices</a></p>`, { script: STORE_JS + js, path: "/plan", desc: "Your private trials of evidence-backed practices: daily check-ins and spaced reflections, kept on your device." });
 }

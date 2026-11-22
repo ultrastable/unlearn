@@ -72,3 +72,12 @@ The research behind this ([Homo Ludens, self-directed learning, and AI-facilitat
 - **Follow-ups** at 7 and 14 days, one tap. **Coach notes** are classed as telling or asking.
 - **The hourly beat** re-learns weights, measures (`/api/metrics`), opens phase 2 when its gates hold (the school-group UI lights by itself), and applies retention. A visit runs the beat if the cron has been silent for 2 hours.
 - **Year safeguards**: `runway.json` lists 12 ways it could stop and the safeguard and probe for each (`tests/foundation/test_unlearn.py` checks every probe). Clock `unlearn-beat` in `doctrine/clocks.json`; loop `unlearn-beat` in the loop registry.
+
+## Change layer (UNLEARN-CHANGE-1)
+
+Beyond debunking: `worker/practices.js` holds evidence-graded practices that run against common advice (if-then plans over willpower,
+self-compassion over self-criticism, retrieval and spacing over rereading and cramming, and more), each a full entry with a trial kit.
+`/change` lists them with the oversold claims to skip; `/plan` runs the reader's trials entirely in their browser (daily check-ins,
+spaced reflections, keep/change/stop, calendar reminder, a message to a friend). The server counts anonymous trial events per practice
+(`/api/plan`) and re-orders suggested plans by how often readers kept going (`worker/change.js`). The Lab's daily discovery also drafts
+candidate practices from new intervention reviews. Tests: `worker/change.test.mjs`.

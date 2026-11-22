@@ -75,7 +75,9 @@ export function regrade(entry, leads) {
 // Humankind is built on: a landmark result that later work overturned or recast).
 export const RETOLD_QUERY = '(TITLE:"replication" OR TITLE:"replicating" OR TITLE:"revisited" OR TITLE:"revisiting" OR TITLE:"reanalysis" OR TITLE:"re-analysis" OR TITLE:"re-examination" OR TITLE:"reconsidered" OR TITLE:"debunking" OR TITLE:"myth") AND (TITLE:"classic" OR TITLE:"famous" OR TITLE:"landmark" OR TITLE:"experiment" OR TITLE:"effect" OR TITLE:"study")';
 export const DISCOVER_QUERY = '(TITLE:"myth" OR TITLE:"myths" OR TITLE:"misconception" OR TITLE:"misconceptions" OR TITLE:"common belief" OR TITLE:"popular belief" OR TITLE:"debunking") AND (PUB_TYPE:"systematic-review" OR PUB_TYPE:"review" OR TITLE:"meta-analysis" OR TITLE:"systematic review")';
-export const SEARCHES = [{ kind: "myth", q: DISCOVER_QUERY }, { kind: "retold", q: RETOLD_QUERY }];
+// UNLEARN-CHANGE-1: reviews of interventions people can do themselves, drafted as candidate practices that run against common advice.
+export const PRACTICE_QUERY = '(TITLE:"intervention" OR TITLE:"interventions" OR TITLE:"training" OR TITLE:"strategies") AND (TITLE:"meta-analysis" OR TITLE:"systematic review") AND (TITLE:"habit" OR TITLE:"self-control" OR TITLE:"procrastination" OR TITLE:"self-compassion" OR TITLE:"implementation intention" OR TITLE:"loneliness" OR TITLE:"well-being" OR TITLE:"wellbeing" OR TITLE:"motivation" OR TITLE:"behaviour change" OR TITLE:"behavior change" OR TITLE:"emotion regulation" OR TITLE:"study strategies")';
+export const SEARCHES = [{ kind: "myth", q: DISCOVER_QUERY }, { kind: "retold", q: RETOLD_QUERY }, { kind: "practice", q: PRACTICE_QUERY }];
 export async function discover(since, fetchFn, entries = ENTRIES, query = DISCOVER_QUERY, kind = "myth") {
   const url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=core&pageSize=10&sort=FIRST_PDATE_D%20desc&query=" + encodeURIComponent(`${query} AND FIRST_PDATE:[${since} TO 3000-01-01]`);
   const r = await fetchFn(url, { headers: { "user-agent": EVIDENCE.ua, accept: "application/json" } });
@@ -90,6 +92,8 @@ export async function discover(since, fetchFn, entries = ENTRIES, query = DISCOV
 }
 export function draftPrompt(c) {
   if (c.kind === "retold") return [{ role: "system", content: "This abstract may report a replication or re-analysis of a famous study. Reply with JSON only: {\"belief\": the popular belief the famous study is cited for, in one plain sentence as people say it, \"story\": what the famous study was taken to show, in one plain sentence, \"later\": what this paper found, in one or two plain sentences, using only facts in the abstract, \"quote\": one sentence copied exactly from the abstract that supports what it found}. If the abstract does not revisit a well-known finding, reply {\"belief\": null}." },
+    { role: "user", content: `${c.title}\n\n${String(c.abstract).slice(0, 3500)}` }];
+  if (c.kind === "practice") return [{ role: "system", content: "This abstract reviews something people can do to change their own behaviour or wellbeing. Reply with JSON only: {\"belief\": the common advice or assumption this finding runs against, in one plain sentence as people say it, \"practice\": a short name for what helps, at most six words, \"says\": what the review found about it, in one or two plain sentences, using only facts in the abstract, \"quote\": one sentence copied exactly from the abstract that supports what it found}. If the abstract does not test something a person can do themselves, or the finding does not run against common advice, reply {\"belief\": null}." },
     { role: "user", content: `${c.title}\n\n${String(c.abstract).slice(0, 3500)}` }];
   return [{ role: "system", content: "From one research abstract, state the popular belief it tests and what it found. Reply with JSON only: {\"belief\": the popular belief in one plain sentence as people say it, \"says\": what the review found in one or two plain sentences, using only facts in the abstract, \"quote\": one sentence copied exactly from the abstract that supports what it found}. If the abstract does not test a popular belief, reply {\"belief\": null}." },
     { role: "user", content: `${c.title}\n\n${String(c.abstract).slice(0, 3500)}` }];
@@ -107,6 +111,12 @@ export function checkDraft(out, c) {
     if (story.length < 20 || story.length > 300 || later.length < 20 || later.length > 500) return { ok: false, why: "length" };
     if (!noNewFacts(story + " " + later, c.abstract + " " + c.title)) return { ok: false, why: "fact not in abstract" };
     Object.assign(draft, { story, later });
+  }
+  if (c.kind === "practice") {
+    const practice = String(j.practice || "").trim();
+    if (practice.length < 3 || practice.length > 60) return { ok: false, why: "length" };
+    if (!noNewFacts(practice, c.abstract + " " + c.title)) return { ok: false, why: "fact not in abstract" };
+    draft.practice = practice;
   }
   return { ok: true, draft };
 }
