@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import worker, { handle, beat, health, modelOrder } from './index.js';
 import { MOVES } from './moves.js';
-import { leaksAnswer, openPhase, metrics, topicOf, classifyNote, pickMove, guardRewording, LIMITS } from './logic.js';
+import { leaksAnswer, openPhase, metrics, topicOf, classifyNote, pickMove, guardRewording, LIMITS, nextKinds, kindVariety } from './logic.js';
 import PHASES from '../phases.json' with { type: 'json' };
 
 function d1() {
@@ -131,4 +131,54 @@ test('the restart route runs a stale beat once and is idempotent', async () => {
   const e = env(), t = Date.UTC(2026, 10, 22);
   assert.equal((await (await handle(post('/pulse/watch', {}), e, t)).json()).ran, true);
   assert.equal((await (await handle(post('/pulse/watch', {}), e, t + 60000)).json()).ran, false);
+});
+
+// Research principles in code (phases.json principles; research: https://claude.ai/artifact/9tSXs9RsEVf4xi3Hr4v9kW).
+test('the first move asks or waits, and another climbs the help ladder', async () => {
+  const e = env(), t = Date.UTC(2026, 10, 22);
+  for (let i = 0; i < 20; i++) {
+    const j = await (await handle(post('/api/curiosity', { text: 'how magnets work ' + i, age: '10-13' }, '9.9.9.' + i), e, t)).json();
+    assert.ok(['ask', 'wait'].includes(j.move.kind), 'first move ' + j.move.id);
+    const a = await (await handle(post('/api/another', { token: j.token }), e, t)).json();
+    assert.equal(a.move.kind, 'try', 'second rung is something to try');
+    const b = await (await handle(post('/api/another', { token: j.token }), e, t)).json();
+    assert.equal(b.move.kind, 'connect', 'third rung is someone or somewhere to go');
+    const c = await (await handle(post('/api/another', { token: j.token }), e, t)).json();
+    assert.equal(c.move.kind, 'connect', 'the top rung stays; explaining is never a rung');
+  }
+  assert.deepEqual(nextKinds('ask'), ['try']); assert.deepEqual(nextKinds('connect'), ['connect']);
+});
+
+test('who led at 14 days is recorded and measured', async () => {
+  const e = env(), t = Date.UTC(2026, 10, 22);
+  const toks = [];
+  for (let i = 0; i < 4; i++) toks.push((await (await handle(post('/api/curiosity', { text: 'bees ' + i }, '8.8.8.' + i), e, t)).json()).token);
+  for (const [i, led] of [[0, 'child'], [1, 'child'], [2, 'together'], [3, 'adult']]) assert.equal((await handle(post('/api/followup', { token: toks[i], day: 14, still: true, led }), e, t)).status, 200);
+  assert.equal((await handle(post('/api/followup', { token: toks[0], day: 7, still: true, led: 'adult' }), e, t)).status, 200);
+  const m = (await (await handle(get('/api/metrics'), e, t)).json()).metrics;
+  assert.equal(m.child_led_14d, 0.5); assert.equal(m.child_led_14d_n, 4);
+  assert.equal(e.DB.raw.prepare("SELECT led FROM explorations WHERE token=?").get(toks[0]).led, 'child', 'a day-7 answer never overwrites who led');
+});
+
+test('move kind variety is measured (wide walls)', async () => {
+  assert.equal(kindVariety([]), null); assert.equal(kindVariety(['ask', 'ask']), 0); assert.equal(kindVariety(['ask', 'try', 'connect', 'wait']), 1);
+  const e = env(), t = Date.UTC(2026, 10, 22);
+  await handle(post('/api/curiosity', { text: 'clouds' }), e, t);
+  const m = (await (await handle(get('/api/metrics'), e, t)).json()).metrics;
+  assert.equal(m.move_kind_variety_8w, 0);
+});
+
+test('no extrinsic hooks: the page has no score, streak, badge, points or leaderboard', async () => {
+  const h = await (await handle(get('/'), env())).text();
+  assert.doesNotMatch(h.replace(/No grades, streaks or child accounts/g, ''), /\b(streaks?|badges?|points|leaderboard|score|level up|XP)\b/i);
+});
+
+test('an existing database gains the led column once, and a second start does not fail', async () => {
+  const e = env();
+  e.DB.raw.exec("CREATE TABLE explorations (id TEXT PRIMARY KEY, token TEXT UNIQUE NOT NULL, created INTEGER NOT NULL, topic TEXT NOT NULL, age TEXT, move_id TEXT NOT NULL, move_text TEXT NOT NULL, reworded INTEGER NOT NULL DEFAULT 0, f7 INTEGER, f14 INTEGER, adult TEXT, grp TEXT, pseudonym TEXT)");
+  await handle(get('/api/phase'), e);
+  assert.ok(e.DB.raw.prepare("PRAGMA table_info(explorations)").all().some(c => c.name === 'led'));
+  const e2 = { DB: { ...e.DB } };  // a fresh isolate on the same database re-runs the migration
+  await handle(get('/api/phase'), e2);
+  assert.ok(e.DB.raw.prepare("PRAGMA table_info(explorations)").all().some(c => c.name === 'led'));
 });

@@ -1,17 +1,17 @@
 {
-  "_doc": "Unlearn rollout. Each phase opens only when the previous phase's exit gates are measured as met. Read by tests/foundation/test_unlearn.py; research: https://claude.ai/artifact/9tSXs9RsEVf4xi3Hr4v9kW",
+  "_doc": "Unlearn rollout. Each phase opens only when the previous phase's exit gates are measured as met. Read by tests/foundation/test_unlearn.py, which also checks every principle's probe (test: names a worker test, grep: path::needle, phase3: names a phase 3 ship); research: https://claude.ai/artifact/9tSXs9RsEVf4xi3Hr4v9kW",
   "principles": [
-    {"id": "child-starts", "rule": "The child starts every project; no assigned tasks, quests or daily goals", "basis": "Huizinga: play to order is no longer play; Agora self-chosen challenges"},
-    {"id": "ask-before-answer", "rule": "Help ladder: ask what was tried, then a hint, then a worked part; a full solution only on request", "basis": "Sinha and Kapur 2021 productive failure; Bastani et al. 2024 tutor arm"},
-    {"id": "build-boring-parts", "rule": "The AI builds plumbing; the child keeps decisions, rules, art and debugging", "basis": "Vygotsky zone of proximal development; Papert constructionism"},
-    {"id": "fade-support", "rule": "Help offered drops where the child has succeeded unaided before", "basis": "Weisberg et al. guided play; Skene et al. 2022"},
-    {"id": "child-part-visible", "rule": "Every project shows what the child made, decided or fixed", "basis": "constructionism: ownership"},
-    {"id": "no-extrinsic-hooks", "rule": "No scores, grades, streaks, badges or time-in-app targets", "basis": "Deci, Koestner and Ryan 1999, 128 experiments"},
-    {"id": "nothing-counts-space", "rule": "A sandbox with no saving, sharing or record", "basis": "magic circle"},
-    {"id": "wide-walls", "rule": "Seed varied cross-domain starting points; measure variety, not template reuse", "basis": "Resnick, Lifelong Kindergarten"},
-    {"id": "peers-back-in", "rule": "Show, remix and mixed-age pairing", "basis": "Gray; Sudbury; Scratch"},
-    {"id": "adult-in-loop", "rule": "A coach or parent gets a digest with conversation prompts; the AI supports the adult and never replaces them", "basis": "Mitra's results improved with a mediator; Arora 2010"},
-    {"id": "privacy-floor", "rule": "No personal data in prompts, nothing public without adult consent, no companion persona, minimal and deletable data", "basis": "COPPA amended rule, UK Children's Code, GDPR art. 8"}
+    {"id": "child-starts", "rule": "The child starts every project; no assigned tasks, quests or daily goals", "basis": "Huizinga: play to order is no longer play; Agora self-chosen challenges", "phase": 1, "probe": "test:a curiosity gets a library move with no model, never an explanation, and follow-ups at 7 and 14 days"},
+    {"id": "ask-before-answer", "rule": "Help ladder: ask what was tried, then a hint, then a worked part; a full solution only on request", "basis": "Sinha and Kapur 2021 productive failure; Bastani et al. 2024 tutor arm", "phase": 1, "probe": "test:the first move asks or waits, and another climbs the help ladder"},
+    {"id": "build-boring-parts", "rule": "The AI builds plumbing; the child keeps decisions, rules, art and debugging", "basis": "Vygotsky zone of proximal development; Papert constructionism", "phase": 1, "probe": "grep:instances/unlearn/worker/moves.js::Let the tool do only the typing"},
+    {"id": "fade-support", "rule": "Help offered drops where the child has succeeded unaided before", "basis": "Weisberg et al. guided play; Skene et al. 2022", "phase": 3, "probe": "phase3:build companion with the help ladder"},
+    {"id": "child-part-visible", "rule": "Every project shows what the child made, decided or fixed", "basis": "constructionism: ownership", "phase": 1, "probe": "test:who led at 14 days is recorded and measured"},
+    {"id": "no-extrinsic-hooks", "rule": "No scores, grades, streaks, badges or time-in-app targets", "basis": "Deci, Koestner and Ryan 1999, 128 experiments", "phase": 1, "probe": "test:no extrinsic hooks: the page has no score, streak, badge, points or leaderboard"},
+    {"id": "nothing-counts-space", "rule": "A sandbox with no saving, sharing or record", "basis": "magic circle", "phase": 3, "probe": "phase3:sandbox mode"},
+    {"id": "wide-walls", "rule": "Seed varied cross-domain starting points; measure variety, not template reuse", "basis": "Resnick, Lifelong Kindergarten", "phase": 1, "probe": "test:move kind variety is measured (wide walls)"},
+    {"id": "peers-back-in", "rule": "Show, remix and mixed-age pairing", "basis": "Gray; Sudbury; Scratch", "phase": 1, "probe": "grep:instances/unlearn/worker/moves.js::connect-peer"},
+    {"id": "adult-in-loop", "rule": "A coach or parent gets a digest with conversation prompts; the AI supports the adult and never replaces them", "basis": "Mitra's results improved with a mediator; Arora 2010", "phase": 1, "probe": "grep:instances/unlearn/IDEA.md::Unlearn is a coaching companion for the adults"},
+    {"id": "privacy-floor", "rule": "No personal data in prompts, nothing public without adult consent, no companion persona, minimal and deletable data", "basis": "COPPA amended rule, UK Children's Code, GDPR art. 8", "phase": 1, "probe": "test:phase 3 never opens on metrics alone: it needs its privacy prerequisites"}
   ],
   "phases": [
     {
@@ -20,7 +20,7 @@
       "audience": "adults beside a curious child",
       "child_data": "none: the adult writes about the exploration, never the child's identity",
       "ships": ["pill ask bar for logging a curiosity", "coaching move generator with an answer-leak guard", "follow-up at 7 and 14 days", "telling detector on coach notes", "public page of measured numbers"],
-      "metrics": {"continuation_14d": ">= 0.5", "telling_share": "<= 0.3", "move_answer_leaks": "== 0"},
+      "metrics": {"continuation_14d": ">= 0.5", "telling_share": "<= 0.3", "move_answer_leaks": "== 0", "child_led_14d": "rising", "move_kind_variety_8w": ">= 0.8"},
       "exit_gates": [
         {"metric": "continuation_14d", "op": ">=", "value": 0.5, "min_sample": 100},
         {"metric": "telling_share", "op": "<=", "value": 0.3, "min_sample": 50},

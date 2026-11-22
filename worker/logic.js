@@ -14,8 +14,9 @@ export function topicOf(text) {
 }
 
 // Beta-Bernoulli sampling over move outcomes: a move that keeps children going (yes at 14 days) is picked more; an untried one still gets tried.
-export function pickMove({ age, weights = {}, rand = Math.random, exclude = [] }) {
-  const pool = MOVES.filter(m => fits(m, age) && !exclude.includes(m.id));
+export function pickMove({ age, weights = {}, rand = Math.random, exclude = [], kinds = null }) {
+  let pool = MOVES.filter(m => fits(m, age) && !exclude.includes(m.id));
+  if (kinds) { const k = pool.filter(m => kinds.includes(m.kind)); if (k.length) pool = k; }
   let best = null, bestScore = -1;
   for (const m of pool) {
     const w = weights[m.id] || { yes: 0, no: 0 };
@@ -24,6 +25,24 @@ export function pickMove({ age, weights = {}, rand = Math.random, exclude = [] }
   }
   return best || MOVES[0];
 }
+// Help ladder (principle ask-before-answer, research: productive failure, Sinha and Kapur 2021; Bastani et al. 2024): a first move asks
+// back or waits; each "another" climbs one rung, to something to try and then someone or somewhere to go. Explaining is never a rung.
+export const LADDER = [["ask", "wait"], ["try"], ["connect"]];
+export function rungOf(kind) { const i = LADDER.findIndex(r => r.includes(kind)); return i < 0 ? 0 : i; }
+export function nextKinds(kind) { return LADDER[Math.min(rungOf(kind) + 1, LADDER.length - 1)]; }
+export const FIRST_KINDS = LADDER[0];
+
+// Who led, asked at the 14-day follow-up (principle child-part-visible): the child, the child and adult together, or mostly the adult.
+export const LED = ["child", "together", "adult"];
+
+// Wide walls (principle wide-walls): normalized Shannon entropy of the move kinds handed out, 0 = one kind only, 1 = all kinds evenly.
+export function kindVariety(kinds) {
+  const n = kinds.length; if (!n) return null;
+  const c = {}; for (const k of kinds) c[k] = (c[k] || 0) + 1;
+  const h = Object.values(c).reduce((a, x) => a - (x / n) * Math.log(x / n), 0);
+  return Math.round((h / Math.log(KINDS.length)) * 1000) / 1000;
+}
+
 function gammaSample(k, rand) {  // Marsaglia-Tsang for k >= 1
   const d = k - 1 / 3, c = 1 / Math.sqrt(9 * d);
   for (;;) {
@@ -67,14 +86,18 @@ export function dueFollowups(createdMs, done, nowMs) {
 }
 
 // Metrics the phase gates read. rows: explorations with fields f14 (1 yes, 0 no, null unanswered); notes with label; moves with leak flag.
-export function metrics({ explorations = [], notes = [], adults8w = 0, schools8w = 0, leaks = 0, dpia = 0 }) {
+export function metrics({ explorations = [], notes = [], adults8w = 0, schools8w = 0, leaks = 0, dpia = 0, kinds8w = [] }) {
   const answered = explorations.filter(e => e.f14 === 0 || e.f14 === 1);
+  const led = explorations.filter(e => LED.includes(e.led));
   const labelled = notes.filter(n => n.label === "telling" || n.label === "asking");
   return {
     continuation_14d: answered.length ? answered.filter(e => e.f14 === 1).length / answered.length : null,
     continuation_14d_n: answered.length,
     telling_share: labelled.length ? labelled.filter(n => n.label === "telling").length / labelled.length : null,
     telling_share_n: labelled.length,
+    child_led_14d: led.length ? led.filter(e => e.led === "child").length / led.length : null,
+    child_led_14d_n: led.length,
+    move_kind_variety_8w: kindVariety(kinds8w),
     active_adults_8w: adults8w, schools_active_8w: schools8w, move_answer_leaks: leaks, dpia_complete: dpia
   };
 }

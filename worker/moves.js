@@ -18,6 +18,7 @@ export const MOVES = [
   { id: "try-log", kind: "try", ages: "6-9,10-13,14+", text: "Suggest they keep a small log about {topic} for a week: what they see, when, and what changed." },
   { id: "try-break", kind: "try", ages: "10-13,14+", text: "Find something old to do with {topic} that they may take apart. Taking apart is research." },
   { id: "try-build", kind: "try", ages: "10-13,14+", text: "Ask what they would build to show someone {topic}. Help only with the parts they ask for." },
+  { id: "try-ai-rules", kind: "try", ages: "10-13,14+", text: "If they want an app or an AI to build something about {topic}, have them write the rules and choices first. Let the tool do only the typing; they decide and fix." },
   { id: "try-play", kind: "try", ages: "u6,6-9", text: "Turn {topic} into a game they invent. Let them make the rules, and play it by their rules." },
   { id: "connect-person", kind: "connect", ages: "any", text: "Think of one person who knows about {topic} (a neighbour, a relative, a maker). Ask if they'd let the child ask them three questions." },
   { id: "connect-place", kind: "connect", ages: "any", text: "Find one place where {topic} happens for real: a workshop, a garden, a market, a museum. Go and let them lead." },
@@ -27,6 +28,7 @@ export const MOVES = [
   { id: "wait-watch", kind: "wait", ages: "any", text: "Wait. Don't answer anything about {topic} for two days. Notice whether they come back to it on their own." },
   { id: "wait-stuck", kind: "wait", ages: "any", text: "If they get stuck on {topic}, let them stay stuck a little longer. Ask \"what have you tried?\" before you offer anything." },
   { id: "wait-space", kind: "wait", ages: "any", text: "Leave something to do with {topic} lying around where they'll find it, and say nothing about it." },
+  { id: "wait-guess-first", kind: "wait", ages: "6-9,10-13,14+", text: "Before anyone searches or asks an AI about {topic}, ask for their own guess and write it down. Look it up only after, and compare." },
   { id: "wait-sleep", kind: "wait", ages: "6-9,10-13,14+", text: "Suggest they sleep on {topic} and tell you tomorrow what they think now. Ideas change overnight." }
 ];
 export const AGE_BANDS = ["u6", "6-9", "10-13", "14+"];

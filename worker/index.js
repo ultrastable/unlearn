@@ -6,7 +6,7 @@
 // The hourly beat re-learns weights, records metrics, opens the next phase when its gates are met (../phases.json) and prunes old data.
 // Year-long safeguards: instances/unlearn/runway.json. Tests: instances/unlearn/worker/logic.test.mjs, worker.test.mjs.
 import { MOVES, AGE_BANDS } from "./moves.js";
-import { LIMITS, topicOf, pickMove, render, guardRewording, classifyNote, dueFollowups, metrics, openPhase, gateReport, PHASES } from "./logic.js";
+import { LIMITS, LED, FIRST_KINDS, nextKinds, topicOf, pickMove, render, guardRewording, classifyNote, dueFollowups, metrics, openPhase, gateReport, PHASES } from "./logic.js";
 import MODELS from "../../../doctrine/models.json" with { type: "json" };
 import { page } from "./page.js";
 
@@ -20,8 +20,16 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS beats (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, started_at TEXT NOT NULL, phase INTEGER NOT NULL, metrics TEXT NOT NULL, pruned INTEGER NOT NULL DEFAULT 0, error TEXT)",
   "CREATE TABLE IF NOT EXISTS state (k TEXT PRIMARY KEY, v TEXT NOT NULL)"
 ];
+// Columns added after the first deploy. SQLite has no ADD COLUMN IF NOT EXISTS, so a duplicate-column error means already applied;
+// any other error is thrown (never swallowed).
+const COLUMNS = ["ALTER TABLE explorations ADD COLUMN led TEXT"];
+async function addColumns(db) {
+  for (const sql of COLUMNS) {
+    try { await db.prepare(sql).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
+  }
+}
 const ready = new WeakMap();  // per database binding (one isolate can serve tests with several)
-async function ensure(db) { if (!ready.has(db)) ready.set(db, db.batch(SCHEMA.map(s => db.prepare(s))).catch(e => { ready.delete(db); throw e; })); return ready.get(db); }
+async function ensure(db) { if (!ready.has(db)) ready.set(db, db.batch(SCHEMA.map(s => db.prepare(s))).then(() => addColumns(db)).catch(e => { ready.delete(db); throw e; })); return ready.get(db); }
 const day = (ms = Date.now()) => new Date(ms).toISOString().slice(0, 10);
 const J = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "*" } });
 const say = (code, message, s = 400) => J({ ok: false, code, message }, s);  // USER-BACKEND-1: plain words for the user, detail stays server-side
@@ -73,13 +81,14 @@ async function weights(db) {
 
 export async function computeMetrics(db, now = Date.now()) {
   const since = now - 56 * 86400000;
-  const ex = (await db.prepare("SELECT f14 FROM explorations WHERE f14 IS NOT NULL").all()).results || [];
+  const ex = (await db.prepare("SELECT f14, led FROM explorations WHERE f14 IS NOT NULL OR led IS NOT NULL").all()).results || [];
+  const kinds = ((await db.prepare("SELECT move_id FROM explorations WHERE created >= ?1").bind(since).all()).results || []).map(r => (MOVES.find(m => m.id === r.move_id) || {}).kind).filter(Boolean);
   const notes = (await db.prepare("SELECT label FROM notes").all()).results || [];
   const adults = await db.prepare("SELECT COUNT(DISTINCT adult) n FROM explorations WHERE created >= ?1 AND adult IS NOT NULL").bind(since).first();
   const schools = await db.prepare("SELECT COUNT(DISTINCT grp) n FROM explorations WHERE created >= ?1 AND grp IS NOT NULL").bind(since).first();
   const leaks = await db.prepare("SELECT COALESCE(SUM(n),0) n FROM counters WHERE key='move_answer_leaks'").first();
   const dpia = await getState(db, "dpia_complete", 0);
-  const m = metrics({ explorations: ex, notes, adults8w: adults ? adults.n : 0, schools8w: schools ? schools.n : 0, leaks: leaks ? leaks.n : 0, dpia });
+  const m = metrics({ explorations: ex, notes, adults8w: adults ? adults.n : 0, schools8w: schools ? schools.n : 0, leaks: leaks ? leaks.n : 0, dpia, kinds8w: kinds });
   const totals = await db.prepare("SELECT COUNT(*) n, SUM(CASE WHEN created >= ?1 THEN 1 ELSE 0 END) d7 FROM explorations").bind(now - 7 * 86400000).first();
   return { ...m, explorations_total: totals ? totals.n : 0, explorations_7d: totals ? (totals.d7 || 0) : 0 };
 }
@@ -158,7 +167,7 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     const phase = await getState(db, "phase", 1);
     let grp = null, pseudonym = null;
     if (phase >= 2 && b.group) { const g = await db.prepare("SELECT code FROM groups_ WHERE code=?1").bind(String(b.group).toUpperCase()).first(); if (g) { grp = g.code; pseudonym = b.pseudonym ? String(b.pseudonym).slice(0, 24) : null; } }
-    const move = pickMove({ age, weights: await weights(db) });
+    const move = pickMove({ age, weights: await weights(db), kinds: FIRST_KINDS });  // ask-before-answer: the first move asks back or waits
     const base = render(move, topic), rw = await reword(env, db, base, topic);
     const id = rid(), token = rid(), adult = b.adult && /^[a-f0-9]{16,64}$/.test(b.adult) ? b.adult : null;
     await db.prepare("INSERT INTO explorations (id, token, created, topic, age, move_id, move_text, reworded, adult, grp, pseudonym) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)").bind(id, token, now, topic, age, move.id, rw.text, rw.reworded ? 1 : 0, adult, grp, pseudonym).run();
@@ -167,14 +176,16 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
   if (u.pathname === "/api/another" && req.method === "POST") {  // a different move for the same curiosity
     const b = await body(req); const e = b && await db.prepare("SELECT * FROM explorations WHERE token=?1").bind(String(b.token || "")).first();
     if (!e) return say("unknown", "We couldn't find that curiosity. Start a new one.", 404);
-    const move = pickMove({ age: e.age, weights: await weights(db), exclude: [e.move_id] }), base = render(move, e.topic), rw = await reword(env, db, base, e.topic);
+    const move = pickMove({ age: e.age, weights: await weights(db), exclude: [e.move_id], kinds: nextKinds((MOVES.find(m => m.id === e.move_id) || {}).kind) }), base = render(move, e.topic), rw = await reword(env, db, base, e.topic);
     await db.prepare("UPDATE explorations SET move_id=?1, move_text=?2, reworded=?3 WHERE token=?4").bind(move.id, rw.text, rw.reworded ? 1 : 0, e.token).run();
     return J({ ok: true, move: { id: move.id, kind: move.kind, text: rw.text } });
   }
   if (u.pathname === "/api/followup" && req.method === "POST") {
     const b = await body(req); const d = Number(b && b.day);
     if (![7, 14].includes(d) || !b || (b.still !== true && b.still !== false)) return say("bad", "Choose yes or no.");
-    const r = await db.prepare(`UPDATE explorations SET f${d}=?1 WHERE token=?2`).bind(b.still ? 1 : 0, String(b.token || "")).run();
+    const led = d === 14 && LED.includes(b.led) ? b.led : null;  // child-part-visible: who led, only asked at 14 days
+    const r = led ? await db.prepare("UPDATE explorations SET f14=?1, led=?2 WHERE token=?3").bind(b.still ? 1 : 0, led, String(b.token || "")).run()
+      : await db.prepare(`UPDATE explorations SET f${d}=?1 WHERE token=?2`).bind(b.still ? 1 : 0, String(b.token || "")).run();
     return (r.meta && r.meta.changes) ? J({ ok: true }) : say("unknown", "We couldn't find that curiosity.", 404);
   }
   if (u.pathname === "/api/note" && req.method === "POST") {
