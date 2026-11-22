@@ -29,8 +29,14 @@
     "individual_eligible_only": true
   },
   "social": {
-    "channels": [],
-    "mode": "dry-run"
+    "channels": [
+      "bluesky",
+      "mastodon",
+      "buffer"
+    ],
+    "mode": "live",
+    "queue": "https://unlearn.ultrastable.org/social-queue.json",
+    "via": "core publisher seed/worker/src/social.js on the platform's connected accounts, within social/gate.json"
   },
   "runtime": {
     "provider": "cloudflare"

@@ -13,6 +13,7 @@ import { page } from "./page.js";
 import { ENTRIES, CATEGORIES } from "./entries.js";
 import { checkEntries, freshness, reviewQueue } from "./evidence.js";
 import { LAB, triagePrompt, checkTriage, regrade, discover, draftPrompt, checkDraft, variantPrompt, checkVariant, decide, pickForVariant, SEARCHES, publishable, mythOfDay, dayIndex } from "./lab.js";
+import { socialQueue } from "./promote.js";
 import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage, draftPage, feed } from "./site.js";
 
 const SCHEMA = [
@@ -341,6 +342,7 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
       const rows = (await db.prepare("SELECT id, ref, title, venue, year, url, status, draft, why, yes, no, found FROM candidates ORDER BY found DESC LIMIT 200").all()).results || [];
       return J({ ok: true, candidates: rows.map(r => ({ ...r, draft: r.draft ? JSON.parse(r.draft) : null })) });
     }
+    if (p === "/social-queue.json") return J(socialQueue(now));  // TENANT-PROMO-1: drained by the core publisher (social/gate.json tenant_queues)
     if (p === "/api/grades.json") return J({ ok: true, grades: await grades(db) });
     if (p.startsWith("/e/")) {
       const e = byId[p.slice(3)];

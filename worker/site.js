@@ -6,6 +6,7 @@
 import { ENTRIES, CATEGORIES, STRENGTH, DIRECTION, DESIGN, METHOD, FORMAT } from "./entries.js";
 import { EVIDENCE } from "./evidence.js";
 import { LAB, mythOfDay } from "./lab.js";
+import { SIBLINGS } from "./promote.js";
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const catOf = id => CATEGORIES.find(c => c.id === id);
@@ -69,7 +70,7 @@ export function layout(title, body, { desc = "", script = "", path = "/" } = {})
 <link rel="canonical" href="https://unlearn.ultrastable.org${esc(path)}"><link rel="alternate" type="application/atom+xml" title="Unlearn: myth of the day" href="/feed.xml"><style>${CSS}</style></head><body>
 <header class="top"><nav aria-label="Main"><a class="brand" href="/">Un<span>learn</span></a><a href="/today">Today</a><a href="/topics">Topics</a><a href="/play">Play</a><a href="/lab">Lab</a><a href="/how">How it works</a><a href="/coach">Coach a child</a></nav></header>
 <main>${body}</main>
-<footer>Unlearn runs on <a href="https://ultrastable.io">Ultrastable</a>, the foundation for any autonomous system. Every entry cites its sources; an hourly loop checks them and watches for new reviews. Data: <a href="/api/entries.json">/api/entries.json</a>. Follow along: <a href="/feed.xml">feed</a>.</footer>
+<footer>Unlearn runs on <a href="https://ultrastable.io">Ultrastable</a>, the foundation for any autonomous system. Every entry cites its sources; an hourly loop checks them and watches for new reviews. Data: <a href="/api/entries.json">/api/entries.json</a>. Follow along: <a href="/feed.xml">feed</a>.${SIBLINGS.length ? ` Also run on Ultrastable: ${SIBLINGS.map(x => `<a href="${esc(x.home)}">${esc(x.name)}</a>`).join(", ")}.` : ""}</footer>
 ${script ? `<script>${script}</script>` : ""}</body></html>`;
 }
 
