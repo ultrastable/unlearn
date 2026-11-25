@@ -35,7 +35,11 @@ export const KG_DEFAULTS = { window_days: 14, max_new_per_run: 5, min_follows: 3
 const ready = new WeakSet();
 export async function ensureKg(db) { if (ready.has(db)) return; for (const q of KG_DDL) await db.prepare(q).run(); ready.add(db); }
 const all = async (db, sql, ...a) => (await db.prepare(sql).bind(...a).all()).results || [];
-async function batch(db, stmts, size = 40) { for (let i = 0; i < stmts.length; i += size) await db.batch(stmts.slice(i, i + size)); }
+// D1 batches writes; a database with no batch (the node self-host shim) runs them one by one, so the graph builds on every host
+async function batch(db, stmts, size = 40) {
+  if (typeof db.batch !== 'function') { for (const s of stmts) await s.run(); return; }
+  for (let i = 0; i < stmts.length; i += size) await db.batch(stmts.slice(i, i + size));
+}
 
 // ----------------------------------------------------------------------------------------------------------------- identity and extraction
 // FNV-1a twice with different seeds: 64 bits, enough that two different records never share a hash in practice (not a security hash).

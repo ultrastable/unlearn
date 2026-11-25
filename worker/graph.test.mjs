@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { handle, beat, health } from './index.js';
-import { authorsOf, graphBeat, records, connections, TENANT } from './graph.js';
+import { authorsOf, fullName, authorAliases, graphBeat, records, connections, TENANT } from './graph.js';
 import { ENTRIES } from './entries.js';
 import * as kg from '../vendor/ultrastable/knowledge.js';
 
@@ -26,6 +26,26 @@ test('authors split into people; organisations stay whole', () => {
   assert.deepEqual(authorsOf('Braga, Welsh and Schnell'), ['Braga', 'Welsh', 'Schnell']);
   assert.deepEqual(authorsOf('Branas et al.'), ['Branas']);
   assert.deepEqual(authorsOf('National Research Council'), ['National Research Council']);
+});
+
+test('researchers are matched by the full name Crossref gives, never by surname alone', async () => {
+  assert.equal(fullName('Pashler', ['Harold Pashler', 'Mark McDaniel']), 'Harold Pashler');
+  assert.equal(fullName('Smith', ['Ann Smith', 'Bob Smith']), 'Smith');  // two people share the surname: keep it, never guess
+  assert.equal(fullName('Smith', []), 'Smith');
+  // two sources by different Smiths stay two people, and a bare surname joins a full name only when the resolved sources agree on one person
+  const e = (id, au, names) => ({ type: 'entry', source: 'entry/' + id, data: { id, sources: [{ authors: au, title: id }], resolved: names ? { 0: names } : undefined } });
+  const recs = [e('a', 'Smith', ['Ann Smith']), e('b', 'Smith', ['Bob Smith']), e('c', 'Pashler', ['Harold Pashler']), e('d', 'Pashler', null)];
+  const al = authorAliases(recs);
+  assert.equal(al[kg.nodeId('author', 'Pashler')], kg.nodeId('author', 'Harold Pashler'));
+  assert.equal(al[kg.nodeId('author', 'Smith')], undefined);
+  // end to end: the full names stored by the evidence loop reach the graph
+  const db = d1(); await handle(get('/health'), { DB: db });
+  const src = ENTRIES[0].sources[0], first = authorsOf(src.authors)[0];
+  db.raw.prepare('INSERT INTO sources (key, entry, doi, found_title, tried, authors) VALUES (?, ?, ?, ?, ?, ?)').run(ENTRIES[0].id + '#0', ENTRIES[0].id, '10.1/x', src.title, NOW, JSON.stringify(['Zed ' + first]));
+  assert.ok((await graphBeat(db, NOW)).ok);
+  const ids = db.raw.prepare("SELECT id FROM kg_nodes WHERE tenant = ? AND kind = 'author' AND retired_at IS NULL").all(TENANT).map(r => r.id);
+  assert.ok(ids.includes(kg.nodeId('author', 'Zed ' + first)), 'full name node');
+  assert.ok(!ids.includes(kg.nodeId('author', first)), 'the bare surname folds into the full name');
 });
 
 test('the beat builds the graph from every entry, then writes nothing when nothing changed', async () => {

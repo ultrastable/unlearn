@@ -7,7 +7,7 @@
 // researchers whose work spans topics, entries with no systematic review behind them. Each finding is checked later (a suggested
 // connection is kept when readers follow it or an editor links it), and kinds of finding that come true are trusted more next time.
 // Pages: /graph (live: re-measured on every load), connections on each entry page. Data: /api/graph.json, /api/graph/insights, /api/graph/method.
-import { runKg, insights, kgHealth, analysis, practices, methodHtml, follow, handleKg, nodeId } from "../vendor/ultrastable/knowledge.js";
+import { runKg, insights, kgHealth, analysis, practices, methodHtml, follow, handleKg, nodeId, key } from "../vendor/ultrastable/knowledge.js";
 import { ENTRIES, CATEGORIES } from "./entries.js";
 
 export const TENANT = "unlearn";
@@ -22,15 +22,34 @@ export function authorsOf(s) {
   return t.split(/,\s*|\s+and\s+|\s*&\s*/).map(x => x.trim()).filter(Boolean);
 }
 
+// The cited surname, matched to a full name Crossref returned for the same source ("Pashler" -> "Harold Pashler"). With no unique match the
+// surname stays, so a wrong person is never guessed.
+export function fullName(surname, full = []) {
+  const k = key(surname), hits = full.filter(n => { const f = key(n); return f === k || f.endsWith(" " + k); });
+  return hits.length === 1 ? hits[0] : surname;
+}
+
+// A bare surname from an unresolved source joins the full-name node only when every resolved source agrees on one person with that surname.
+export function authorAliases(recs) {
+  const by = {};
+  for (const r of recs) if (r.type === "entry") for (const [i, s] of (r.data.sources || []).entries()) for (const a of authorsOf(s.authors)) {
+    const f = fullName(a, (r.data.resolved || {})[i]);
+    if (f !== a) (by[a] = by[a] || new Set()).add(nodeId("author", f));
+  }
+  const out = {};
+  for (const [a, ids] of Object.entries(by)) if (ids.size === 1) out[nodeId("author", a)] = [...ids][0];
+  return out;
+}
+
 export const MAPPERS = {
   entry: (e, { node, edge }) => {
     const me = node("entry", e.belief, { strength: e.strength, direction: e.direction, slug: e.id }, "entry:" + e.id);
     edge(me, "in_topic", node("topic", catName[e.cat] || e.cat, { slug: e.cat }, "topic:" + e.cat));
-    for (const s of e.sources || []) {
+    for (const [i, s] of (e.sources || []).entries()) {
       const st = node("study", s.title, { year: s.year, design: s.design });
       edge(me, "cites", st);
       if (s.design === "review" || s.design === "consensus" || s.design === "replication") edge(me, "cites_review", st);
-      for (const a of authorsOf(s.authors)) { const au = node("author", a); edge(st, "by", au); edge(me, "draws_on", au, { weight: 0.5 }); }  // the entry-to-researcher shortcut makes a shared researcher a shared neighbour
+      for (const a of authorsOf(s.authors)) { const au = node("author", fullName(a, (e.resolved || {})[i])); edge(st, "by", au); edge(me, "draws_on", au, { weight: 0.5 }); }  // the entry-to-researcher shortcut makes a shared researcher a shared neighbour
       if (s.venue) edge(st, "in_venue", node("venue", s.venue));
     }
     for (const r of e.related || []) if (byId[r]) edge(me, "related", node("entry", byId[r].belief, { slug: r }, "entry:" + r));
@@ -61,17 +80,25 @@ export const SPEC = {
 };
 
 export async function records(db, entries = ENTRIES) {
-  const rows = async sql => { try { return (await db.prepare(sql).all()).results || []; } catch (e) { if (/no such table/.test(String(e && e.message))) return []; throw e; } };
+  const rows = async sql => { try { return (await db.prepare(sql).all()).results || []; } catch (e) { if (/no such (table|column)/.test(String(e && e.message))) return []; throw e; } };
   const leads = await rows("SELECT id, entry, title, venue, year, stance FROM leads ORDER BY id DESC LIMIT 1500");
   const drafts = (await rows("SELECT id, title, year, draft FROM candidates WHERE status='drafted' ORDER BY id DESC LIMIT 500"))
     .map(c => { let d = null; try { d = JSON.parse(c.draft); } catch (e) { d = null; } return { id: c.id, title: c.title, year: c.year, belief: d && d.belief }; });
-  return [...entries.map(e => ({ type: "entry", source: "entry/" + e.id, data: e })), ...leads.map(l => ({ type: "lead", source: "lead/" + l.id, data: l })),
+  // full author names the evidence loop got from Crossref, per cited source ("<entry>#<index>")
+  const resolved = {};
+  for (const r of await rows("SELECT key, authors FROM sources WHERE authors IS NOT NULL")) {
+    const [entry, i] = String(r.key).split("#"); let names = [];
+    try { names = JSON.parse(r.authors); } catch (e) { names = []; }
+    if (Array.isArray(names) && names.length) (resolved[entry] = resolved[entry] || {})[i] = names;
+  }
+  return [...entries.map(e => ({ type: "entry", source: "entry/" + e.id, data: resolved[e.id] ? { ...e, resolved: resolved[e.id] } : e })), ...leads.map(l => ({ type: "lead", source: "lead/" + l.id, data: l })),
     ...drafts.map(c => ({ type: "draft", source: "draft/" + c.id, data: c }))];
 }
 
 // Step 7 of the hourly beat.
 export async function graphBeat(db, now = Date.now()) {
-  return runKg(db, { tenant: TENANT, records: await records(db), mappers: MAPPERS, spec: SPEC, now });
+  const recs = await records(db);
+  return runKg(db, { tenant: TENANT, records: recs, mappers: MAPPERS, spec: SPEC, aliases: authorAliases(recs), now });
 }
 
 // Suggested connections for one entry: open or confirmed link findings that name it and are not already a "related" link.

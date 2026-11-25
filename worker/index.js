@@ -39,7 +39,8 @@ const SCHEMA = [
 // Columns added after the first deploy. SQLite has no ADD COLUMN IF NOT EXISTS, so a duplicate-column error means already applied;
 // any other error is thrown (never swallowed).
 const COLUMNS = ["ALTER TABLE candidates ADD COLUMN kind TEXT", "ALTER TABLE explorations ADD COLUMN led TEXT", "ALTER TABLE leads ADD COLUMN abstract TEXT", "ALTER TABLE leads ADD COLUMN stance TEXT",
-  "ALTER TABLE leads ADD COLUMN quote TEXT", "ALTER TABLE leads ADD COLUMN classified INTEGER"];
+  "ALTER TABLE leads ADD COLUMN quote TEXT", "ALTER TABLE leads ADD COLUMN classified INTEGER",
+  "ALTER TABLE sources ADD COLUMN authors TEXT"];
 async function addColumns(db) {
   for (const sql of COLUMNS) {
     try { await db.prepare(sql).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
