@@ -346,13 +346,8 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     const p = u.pathname.replace(/\/+$/, "") || "/";
     if (p === "/" || p === "/index.html") { await catchUp(env, ctx, now); const m = await encyclopediaMetrics(db, now); return html(home({ stats: m, surprising: m.surprising, grades: await grades(db), today: mythOfDay(now), drafts: (await published(db, now)).slice(0, 3) })); }
     if (p === "/today") return new Response(null, { status: 302, headers: { location: "/e/" + mythOfDay(now).id + "?from=today", "cache-control": "no-store" } });
-<<<<<<< HEAD
     if (p === "/feed.xml") return new Response(feed(now, await published(db, now)), { headers: { "content-type": "application/atom+xml; charset=utf-8", "cache-control": "public, max-age=3600" } });
     if (p === "/feed.json") return new Response(JSON.stringify(jsonFeed(now, await published(db, now))), { headers: { "content-type": "application/feed+json; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
-=======
-    if (p === "/feed.xml") return new Response(feed(now, await published(db)), { headers: { "content-type": "application/atom+xml; charset=utf-8", "cache-control": "public, max-age=3600" } });
-    if (p === "/feed.json") return new Response(JSON.stringify(jsonFeed(now, await published(db))), { headers: { "content-type": "application/feed+json; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
->>>>>>> origin/main
     if (p === "/favicon.ico" || p === "/favicon.svg") return new Response(FAVICON, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=604800" } });
     if (p.startsWith("/d/")) {
       const id = Number(p.slice(3)); const c = Number.isInteger(id) ? (await published(db, now)).find(x => x.id === id) : null;
