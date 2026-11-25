@@ -14,8 +14,9 @@ import { ENTRIES, CATEGORIES } from "./entries.js";
 import { checkEntries, freshness, reviewQueue } from "./evidence.js";
 import { LAB, triagePrompt, checkTriage, regrade, discover, draftPrompt, checkDraft, variantPrompt, checkVariant, decide, pickForVariant, SEARCHES, publishable, mythOfDay, dayIndex } from "./lab.js";
 import { socialQueue } from "./promote.js";
-import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage, draftPage, feed, jsonFeed, FAVICON, changePage, planPage } from "./site.js";
+import { graphPage, home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage, draftPage, feed, jsonFeed, FAVICON, changePage, planPage } from "./site.js";
 import { eventKey, practiceStats } from "./change.js";
+import { graphBeat, graphHealth, graphApi, graphView, connections } from "./graph.js";  // KGRAPH-1
 
 const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS explorations (id TEXT PRIMARY KEY, token TEXT UNIQUE NOT NULL, created INTEGER NOT NULL, topic TEXT NOT NULL, age TEXT, move_id TEXT NOT NULL, move_text TEXT NOT NULL, reworded INTEGER NOT NULL DEFAULT 0, f7 INTEGER, f14 INTEGER, adult TEXT, grp TEXT, pseudonym TEXT)",
@@ -296,6 +297,12 @@ export async function beat(env, now = Date.now()) {
     m.lab = { ...lab, errors: lab.errors.length };
     for (const x of lab.errors) console.error("unlearn lab", x);
   } catch (e) { m.lab = { error: String(e && e.message || e) }; console.error("unlearn lab", m.lab.error); }
+  // 7. the knowledge graph (KGRAPH-1): rebuilt incrementally from every entry, review and draft; findings settled and re-weighted
+  try {
+    const kgr = await graphBeat(db, now);
+    m.graph = { nodes: kgr.nodes, edges: kgr.edges, communities: kgr.communities, modularity: kgr.modularity, changed: kgr.added + kgr.changed + kgr.retired, insights_new: kgr.insights_new, kept: kgr.kept, dropped: kgr.dropped, error: kgr.error };
+    if (kgr.error) console.error("unlearn graph", kgr.error);
+  } catch (e) { m.graph = { error: String(e && e.message || e) }; console.error("unlearn graph", m.graph.error); }
   await db.prepare("INSERT INTO beats (at, started_at, phase, metrics, pruned, error) VALUES (?1, ?2, ?3, ?4, ?5, ?6)").bind(now, new Date(now).toISOString(), phase, JSON.stringify(m), pruned, err).run();
   return { ok: !err, phase, metrics: m, pruned, error: err };
 }
@@ -306,9 +313,10 @@ export async function health(env, now = Date.now()) {
   const age = last ? Math.round((now - last.at) / 60000) : null;
   const ai = await db.prepare("SELECT key, n FROM counters WHERE day=?1 AND (key='ai_calls' OR key LIKE 'ai_error:%' OR key='ai_guard_refused')").bind(day(now)).all();
   const clock = last === null ? "no beat yet" : age <= 90 ? "ticking" : age <= 180 ? "late" : "stopped";
-  return { ok: clock !== "stopped" && !(last && last.error), service: "unlearn", phase: last ? last.phase : 1, clock, last_beat_minutes_ago: age, last_error: last ? last.error : null,
+  const graph = await graphHealth(db, now);  // KGRAPH-1: a failed graph run fails health; a graph not built yet (first hour after a deploy) does not
+  return { ok: clock !== "stopped" && !(last && last.error) && !graph.last_error, service: "unlearn", phase: last ? last.phase : 1, clock, last_beat_minutes_ago: age, last_error: last ? last.error : null,
     ai: { binding: !!env.AI, models: modelOrder(), today: Object.fromEntries(((ai && ai.results) || []).map(r => [r.key, r.n])) }, halted: halted(env), moves_in_library: MOVES.length,
-    encyclopedia: { entries: ENTRIES.length, categories: CATEGORIES.length, evidence_loop: !!evidenceFetch(env) } };
+    encyclopedia: { entries: ENTRIES.length, categories: CATEGORIES.length, evidence_loop: !!evidenceFetch(env) }, graph };
 }
 
 async function body(req) { try { return await req.json(); } catch (e) { return null; } }
@@ -330,6 +338,10 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     const ran = await catchUp(env, null, now); return J({ ok: true, ran });
   }
   if (u.pathname === "/health") { const h = await health(env, now); return J(h, h.ok ? 200 : 503); }
+  if (u.pathname.startsWith("/api/graph")) {  // KGRAPH-1: graph, insights, node, live method, health; POST follow (a reader's click on a suggested connection)
+    if (req.method === "POST" && !(await allowTap(db, req))) return J({ ok: false, error: "rate_limited" }, 429);
+    const r = await graphApi(req, db, now); if (r) return r;
+  }
   const html = (h, s = 200, live = false) => new Response(h, { status: s, headers: { "content-type": "text/html; charset=utf-8", "cache-control": live ? "no-store" : "public, max-age=300" } });
   if (req.method === "GET" || req.method === "HEAD") {
     const p = u.pathname.replace(/\/+$/, "") || "/";
@@ -360,9 +372,10 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
       if (e) {
         const leads = (await db.prepare("SELECT title, venue, year, url, stance, quote FROM leads WHERE entry=?1 AND reviewed=0 ORDER BY found DESC LIMIT 8").bind(e.id).all()).results || [];
         const g = (await grades(db))[e.id], w = await wording(db, e.id);
-        return html(entryPage(e, { dois: await doiMap(db, e.id), leads, counts: await readerCounts(db, e.id), grade: g, slip: w.slip, variant: w.variant }), 200, true);
+        return html(entryPage(e, { dois: await doiMap(db, e.id), leads, counts: await readerCounts(db, e.id), grade: g, slip: w.slip, variant: w.variant, connections: await connections(db, e.id) }), 200, true);
       }
     }
+    if (p === "/graph") return html(graphPage(await graphView(db, now)), 200, true);
     if (p === "/change") return html(changePage({ stats: await planStats(db), grades: await grades(db) }), 200, true);
     if (p === "/plan") return html(planPage());
     if (p === "/api/practices.json") {
