@@ -1,0 +1,35 @@
+name: branch-cleanup
+# BRANCH-CLEANUP-1 (Rowan, 2026-11-25): no branch outlives its pull request in any Ultrastable repository, and the repo setting
+# delete_branch_on_merge is on everywhere. scripts/branch_cleanup.py resets the setting when it drifts, deletes branches whose PRs are
+# merged or closed (recoverable from refs/pull/<n>/head), archives then deletes PR-less branches older than the window, and the last
+# step is the probe: it goes red while any stale branch or setting remains.
+# budget: ~2 min per run, daily plus each push to main (~90 min per month)
+# trigger: daily; on push to main so a merge cleans up at once; manual dispatch
+# free-alternative: run `python3 scripts/branch_cleanup.py --apply` from the tick Worker lane or a cloud agent session holding LANE_PAT
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  pull-requests: read
+concurrency:
+  group: branch-cleanup
+  cancel-in-progress: false
+jobs:
+  cleanup:
+    if: ${{ vars.HALT != '1' }}  # HALT-1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.LANE_PAT || github.token }}
+      BRANCH_CLEANUP_REPOS: ${{ github.event.repository.name }}
+      BRANCH_CLEANUP_ORG: ${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Enforce setting and delete stale branches
+        run: python3 scripts/branch_cleanup.py --apply
+      - name: Probe (red while anything stale remains)
+        run: python3 scripts/branch_cleanup.py --check
