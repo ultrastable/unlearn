@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LicenseRef-Ultrastable-USL-1.0
 // Copyright (c) 2026 Rowan Brad Quni-Gudzinas. Non-commercial use free; commercial use requires a license. See LICENSE.
 // KGRAPH-1 (Rowan, 2026-11-25): "All UltraStable deployments and systems shall have a knowledge graph (graph network) to automatically build
-// and maintain a graph of connections for all data." This is the one shared engine every system runs: the platform's tick (kgstep.js) and every
-// tenant (vendored as vendor/ultrastable/knowledge.js, so it imports nothing). The research behind each choice is code too: KG_PRACTICES below, each
+// and maintain a graph of connections for all data." This is the shared engine for systems that map their own records (the
+// platform's zero-config graph is DATAGRAPH-1, seed/worker/src/datagraph.js); tenants vendor it (doctrine/tenant-repos.json), so it imports nothing. The research behind each choice is code too: KG_PRACTICES below, each
 // practice bound to a live measurement of this graph, served by practices() and methodHtml() so the write-up is re-measured on every request.
 //
 // One beat, run on the system's own clock:
@@ -33,7 +33,14 @@ export const KG_DDL = [
 export const KG_DEFAULTS = { window_days: 14, max_new_per_run: 5, min_follows: 3, max_hub: 50, max_pairs: 20000, retain_days: 180, runs_days: 90, expect: 0.3, kinds: { link: 1, gap: 1, bridge: 1 } };
 
 const ready = new WeakSet();
-export async function ensureKg(db) { if (ready.has(db)) return; for (const q of KG_DDL) await db.prepare(q).run(); ready.add(db); }
+export async function ensureKg(db) {
+  if (ready.has(db)) return;
+  // DATAGRAPH-1 (seed/worker/src/datagraph.js) uses the same table names with another schema; never write into its tables
+  const cols = ((await db.prepare(`PRAGMA table_info(kg_nodes)`).all()).results || []).map(c => c.name);
+  if (cols.length && !cols.includes('tenant')) throw new Error('kg_* tables here belong to DATAGRAPH-1 (seed/worker/src/datagraph.js): this database keeps its graph with that engine');
+  for (const q of KG_DDL) await db.prepare(q).run();
+  ready.add(db);
+}
 const all = async (db, sql, ...a) => (await db.prepare(sql).bind(...a).all()).results || [];
 // D1 batches writes; a database with no batch (the node self-host shim) runs them one by one, so the graph builds on every host
 async function batch(db, stmts, size = 40) {

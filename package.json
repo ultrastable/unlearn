@@ -2,7 +2,7 @@
   "name": "unlearn",
   "private": true,
   "type": "module",
-  "description": "Unlearn: popular beliefs and famous findings set against the evidence. A tenant system running on Ultrastable.",
+  "description": "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them.",
   "scripts": {
     "test": "node --test --no-warnings worker/*.test.mjs"
   }

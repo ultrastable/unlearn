@@ -1,10 +1,10 @@
 name: ci
 # SPDX-License-Identifier: LicenseRef-Ultrastable-USL-1.0
-# Unlearn's own tests on every pull request and push to main. Deploys are done by the Ultrastable platform, which builds this repository's
-# main into the ultrastable-unlearn Worker (doctrine/topology.json `source` in ultrastable/ultrastable) daily and on dispatch.
+# Unlearn's own tests and the tenant standard (TENANT-STANDARD-1) on every pull request and push to main. Deploys are done by the Ultrastable
+# platform, which builds this repository's main into the ultrastable-unlearn Worker. Written by the platform scaffold; do not edit by hand.
 # budget: ~1 min per run (public repository: free minutes)
 # trigger: pull_request, push to main, and dispatch (the platform's progress monitor runs it when Unlearn stalls)
-# free-alternative: `node --test worker/*.test.mjs` from a cloud-hosted agent session
+# free-alternative: `npm test && python3 vendor/ultrastable/tools/tenantstd.py --check --tenant .` from a cloud-hosted agent session
 on:
   pull_request:
   workflow_dispatch:
@@ -17,10 +17,14 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
+    if: ${{ vars.HALT != '1' }}  # HALT-1
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with: {node-version: 24}
-      - run: node --test --no-warnings worker/*.test.mjs
+      - name: Tests
+        run: npm test
+      - name: The repository meets the tenant standard (TENANT-STANDARD-1)
+        run: python3 vendor/ultrastable/tools/tenantstd.py --check --tenant .
