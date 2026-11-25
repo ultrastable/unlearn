@@ -14,4 +14,7 @@ lifecycle.json, runway.json) and the platform rules every agent follows live in 
 - No child accounts and no child data; no cookies; reader taps are anonymous counts.
 - Vendored core files stay current by themselves: `vendor-sync.yml` daily fetches what the core's registry maps for Unlearn, tests, commits to main, and the platform redeploys (`node scripts/vendor_sync.mjs --check` is the probe). Never edit `vendor/` by hand.
 - Feeds: `/feed.xml` (Atom) and `/feed.json` (JSON Feed 1.1, read by the platform's stickiness step) share one item list (`feedItems` in `worker/site.js`).
+<<<<<<< HEAD
 - STATIC-1 (Rowan, 2026-11-25: "Static content is NOT autonomous"): content grows by the loops, not by hand. Discovery walks Europe PMC every six hours (newest plus the back catalogue by cursor), drafts pass the grounding guards, and a guarded draft publishes itself after `LAB.publish_after_hours` unless readers vote it down. Hand-written entries are re-graded hourly by the evidence loop. Grading stays honest: a draft is always labelled a draft from one paper.
+=======
+>>>>>>> origin/main
