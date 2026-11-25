@@ -73,7 +73,7 @@ export function layout(title, body, { desc = "", script = "", path = "/" } = {})
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc || "Unlearn: popular beliefs where the evidence points another way, with graded evidence and named sources.")}">
 <link rel="canonical" href="https://unlearn.ultrastable.org${esc(path)}"><link rel="alternate" type="application/atom+xml" title="Unlearn: myth of the day" href="/feed.xml"><link rel="alternate" type="application/feed+json" title="Unlearn: myth of the day" href="/feed.json"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><style>${CSS}</style></head><body>
-<header class="top"><nav aria-label="Main"><a class="brand" href="/">Un<span>learn</span></a><a href="/today">Today</a><a href="/topics">Topics</a><a href="/change">Change</a><a href="/play">Play</a><a href="/lab">Lab</a><a href="/how">How it works</a><a href="/coach">Coach a child</a></nav></header>
+<header class="top"><nav aria-label="Main"><a class="brand" href="/">Un<span>learn</span></a><a href="/today">Today</a><a href="/topics">Topics</a><a href="/change">Change</a><a href="/play">Play</a><a href="/lab">Lab</a><a href="/graph">Graph</a><a href="/how">How it works</a><a href="/coach">Coach a child</a></nav></header>
 <main>${body}</main>
 <footer>Unlearn runs on <a href="https://ultrastable.io">Ultrastable</a>, the foundation for any autonomous system. Every entry cites its sources; an hourly loop checks them and watches for new reviews. Data: <a href="/api/entries.json">/api/entries.json</a>. Follow along: <a href="/feed.xml">feed</a>.${SIBLINGS.length ? ` Also run on Ultrastable: ${SIBLINGS.map(x => `<a href="${esc(x.home)}">${esc(x.name)}</a>`).join(", ")}.` : ""}</footer>
 ${script ? `<script>${script}</script>` : ""}</body></html>`;
@@ -125,7 +125,7 @@ export function topic(id, grades = {}) {
   return layout(c.name + " · Unlearn", `<p class="small"><a href="/topics">Topics</a></p><h1>${esc(c.name)}</h1><p class="lede">${esc(c.blurb)}</p>${FILTERS}<div class="grid">${list.map(e => card(e, grades)).join("")}</div>`, { script: FILTER_JS, path: "/topics/" + id });
 }
 
-export function entryPage(e, { dois = {}, leads = [], counts = {}, grade = null, slip = null, variant = null } = {}) {
+export function entryPage(e, { dois = {}, leads = [], counts = {}, grade = null, slip = null, variant = null, connections = [] } = {}) {
   const c = catOf(e.cat), g = e.guess, st = shown(e, grade);
   const guesses = g.options.reduce((n, _, i) => n + (counts["guess:" + i] || 0), 0);
   const right = guesses ? Math.round(100 * (counts["guess:" + g.answer] || 0) / guesses) : null;
@@ -151,14 +151,15 @@ ${leadHtml}
 <div class="step" id="shift" data-entry="${esc(e.id)}"${variant ? ` data-variant="${variant}"` : ""}><div class="k">Did this change how you see it?</div><div class="row"><button class="btn" data-s="yes">Yes</button><button class="btn" data-s="some">A little</button><button class="btn" data-s="no">No</button></div><p class="small muted" id="sr" aria-live="polite"></p></div>
 </details>
 ${kit(e, counts)}
-${rel.length ? `<h2>Related</h2><div class="grid">${rel.map(x => card(x)).join("")}</div>` : ""}`;
+${rel.length ? `<h2>Related</h2><div class="grid">${rel.map(x => card(x)).join("")}</div>` : ""}
+${connectionsHtml(connections)}`;
   const js = `const G=document.getElementById('guess'),A=+G.dataset.answer,E=G.dataset.entry;let done=false;
 G.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(done)return;done=true;const i=+b.dataset.i;G.querySelectorAll('button').forEach(x=>{const j=+x.dataset.i;if(j===A)x.classList.add('right');else if(j===i)x.classList.add('wrong')});
 document.getElementById('gr').textContent=(i===A?'You called it. Here is the evidence.':'Most beliefs feel true for good reasons. Here is what the studies found.')+streakText(streak());document.getElementById('rv').open=true;
 fetch('/api/guess',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({entry:E,choice:i})}).catch(()=>{})});
 const S=document.getElementById('shift');document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-s]').forEach(x=>x.disabled=true);document.getElementById('sr').textContent='Thanks. Counted anonymously.';
 fetch('/api/shift',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.assign({entry:E,shift:b.dataset.s},S.dataset.variant?{variant:+S.dataset.variant}:{}))}).catch(()=>{})});`;
-  return layout(e.belief + " · Unlearn", body, { script: STREAK_JS + js + (e.change ? STORE_JS + KIT_JS : ""), path: "/e/" + e.id, desc: "Belief: " + e.belief + " " + DIRECTION[e.direction].name + " (" + STRENGTH[st].name.toLowerCase() + " evidence)." });
+  return layout(e.belief + " · Unlearn", body, { script: STREAK_JS + js + (connections.length ? FOLLOW_JS : "") + (e.change ? STORE_JS + KIT_JS : ""), path: "/e/" + e.id, desc: "Belief: " + e.belief + " " + DIRECTION[e.direction].name + " (" + STRENGTH[st].name.toLowerCase() + " evidence)." });
 }
 
 export function searchPage(q) {
@@ -208,7 +209,7 @@ ${metrics.change && metrics.change.trials_started ? `<div class="stats"><div><b>
 }
 
 export function sitemap(drafts = []) {
-  const urls = ["/", "/topics", "/change", "/plan", "/play", "/lab", "/how", "/coach", ...drafts.map(id => "/d/" + id), ...CATEGORIES.map(c => "/topics/" + c.id), ...ENTRIES.map(e => "/e/" + e.id)];
+  const urls = ["/", "/topics", "/change", "/plan", "/play", "/lab", "/graph", "/how", "/coach", ...drafts.map(id => "/d/" + id), ...CATEGORIES.map(c => "/topics/" + c.id), ...ENTRIES.map(e => "/e/" + e.id)];
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(u => `<url><loc>https://unlearn.ultrastable.org${u}</loc></url>`).join("")}</urlset>`;
 }
 
@@ -367,4 +368,28 @@ document.getElementById('wipe').onclick=()=>{savePlans([]);draw()};draw();`;
 <div id="list"><noscript><p>Plans need script, because they live only on your device.</p></noscript></div><div id="old"></div>
 <p class="small muted">Nothing on this page is sent anywhere except anonymous counts (a trial started, a day checked in) per practice, with nothing that identifies you. <button class="btn" id="wipe" type="button">Delete everything on this device</button></p>
 <p><a class="btn" href="/change">More practices</a></p>`, { script: STORE_JS + js, path: "/plan", desc: "Your private trials of evidence-backed practices: daily check-ins and spaced reflections, kept on your device." });
+}
+
+// KGRAPH-1: the encyclopedia's knowledge graph, read live on every load (worker/graph.js). Nothing on this page is typed by hand.
+const KIND_NAME = { link: "Possible connection", gap: "Gap", bridge: "Bridge" };
+const nodeHref = (id, label) => (id.startsWith("entry:") ? `<a href="/e/${esc(id.slice(6))}">${esc(label)}</a>` : esc(label));
+export function graphPage(v) {
+  const a = v.analysis, h = v.practices.health, L = id => (v.labels[id] || { label: id.replace(/^[a-z]+:/, ""), kind: id.split(":")[0] });
+  const insight = i => `<div class="step"><div class="k">${esc(KIND_NAME[i.kind] || i.kind)}${i.status === "kept" ? ' <span class="tag ok">came true</span>' : ""}</div><p style="margin:0">${esc(i.text)}</p>${i.kind === "link" ? `<p class="small" style="margin:.3em 0 0">${["subject", "object"].map(k => i[k] && i[k].startsWith("entry:") ? `<a data-ins="${esc(i.id)}" href="/e/${esc(i[k].slice(6))}?via=graph">${esc(byId[i[k].slice(6)] ? byId[i[k].slice(6)].belief : i[k])}</a>` : "").filter(Boolean).join(" · ")}</p>` : ""}</div>`;
+  const body = `<h1>The knowledge graph</h1>
+<p>Every entry, study, researcher, journal, new review and Lab draft on Unlearn is a node in one graph. The hourly loop rebuilds it from the data, looks for what nobody wrote down, and checks later whether each finding came true. Kinds of finding that come true are trusted more next time.</p>
+<div class="row"><span class="tag">${esc(h.nodes)} nodes</span><span class="tag">${esc(h.edges)} links</span><span class="tag">${esc(h.communities)} clusters</span>${a ? `<span class="tag">modularity ${esc(a.modularity)}</span>` : ""}<span class="tag ${h.ok ? "ok" : "warn"}">${h.last_run_hours_ago === null ? "not built yet" : `rebuilt ${esc(Math.round(h.last_run_hours_ago * 60))} min ago`}</span>${h.kept_rate === null ? "" : `<span class="tag">${esc(Math.round(h.kept_rate * 100))}% of checked findings came true</span>`}</div>
+${a && a.hubs && a.hubs.length ? `<h2>At the centre</h2><p class="small muted">The nodes the rest of the graph leans on most (PageRank).</p><p>${a.hubs.map(id => nodeHref(id, L(id).label) + ` <span class="small muted">(${esc(L(id).kind)})</span>`).join(" · ")}</p>` : ""}
+${a && a.bridges && a.bridges.length ? `<h2>Bridges</h2><p class="small muted">Research that connects clusters which otherwise do not touch.</p><p>${a.bridges.slice(0, 12).map(id => nodeHref(id, L(id).label) + ` <span class="small muted">(${esc(L(id).kind)})</span>`).join(" · ")}</p>` : ""}
+<h2>Open findings</h2>${v.open.length ? v.open.map(insight).join("") : '<p class="muted">None open right now.</p>'}
+${v.kept.length ? `<h2>Findings that came true</h2>${v.kept.map(insight).join("")}` : ""}
+<h2>How this graph is built, checked right now</h2>${v.method}
+<p class="small">Data: <a href="/api/graph.json">/api/graph.json</a> · <a href="/api/graph/insights">/api/graph/insights</a> · <a href="/api/graph/method">/api/graph/method</a> · <a href="/api/graph/health">/api/graph/health</a></p>`;
+  return layout("The knowledge graph · Unlearn", body, { script: FOLLOW_JS, path: "/graph", desc: "Unlearn's knowledge graph of beliefs, studies and researchers, rebuilt hourly, with the connections it found and whether they came true." });
+}
+// A click on a suggested connection is the reader's verdict on it: counted anonymously, by finding id only.
+export const FOLLOW_JS = `document.querySelectorAll('[data-ins]').forEach(a=>a.addEventListener('click',()=>{try{navigator.sendBeacon('/api/graph/follow',new Blob([JSON.stringify({id:a.dataset.ins})],{type:'application/json'}))}catch(e){}}));`;
+export function connectionsHtml(list) {
+  if (!list.length) return "";
+  return `<h2>Connected by shared research</h2><p class="small muted">Found by the knowledge graph, not written by an editor: these beliefs rest on some of the same studies or researchers. <a href="/graph">How</a></p><div class="grid">${list.map(c => `<a class="card" data-ins="${esc(c.id)}" href="/e/${esc(c.entry.id)}?via=graph" style="--h:${(CATEGORIES.find(x => x.id === c.entry.cat) || { hue: 200 }).hue}"><span class="belief">${esc(c.entry.belief)}</span><span class="small muted">${esc((m => (m ? "Both draw on research by " + m[1] + "." : c.why))(/\(([^()]*)\)\.?$/.exec(c.why)))}</span></a>`).join("")}</div>`;
 }

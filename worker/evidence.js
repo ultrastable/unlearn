@@ -23,12 +23,18 @@ export function titleMatch(cited, found) {
   return a.filter(w => b.has(w)).length / a.length;
 }
 
+// Crossref "author" list -> ["Given Family", ...]; organisations keep their name; at most 30 names.
+export function crossrefAuthors(list) {
+  return (Array.isArray(list) ? list : []).map(a => a && (a.family ? [a.given, a.family].filter(Boolean).join(" ") : a.name)).filter(Boolean).map(x => String(x).replace(/\s+/g, " ").trim().slice(0, 120)).slice(0, 30);
+}
+
 export function sourceKey(entryId, i) { return entryId + "#" + i; }
 
-// Crossref bibliographic search. Returns { doi, title, year } when the best hit matches, else null with the reason.
+// Crossref bibliographic search. Returns { doi, title, year, authors } when the best hit matches, else null. `authors` are the full names
+// Crossref holds ("Harold Pashler"); the knowledge graph uses them so two researchers who share a surname stay two people.
 export async function resolveSource(src, fetchFn) {
   const q = [src.title, src.authors, src.venue, src.year].join(" ");
-  const url = "https://api.crossref.org/works?rows=3&select=DOI,title,issued,container-title&query.bibliographic=" + encodeURIComponent(q.slice(0, 300));
+  const url = "https://api.crossref.org/works?rows=3&select=DOI,title,issued,container-title,author&query.bibliographic=" + encodeURIComponent(q.slice(0, 300));
   const r = await fetchFn(url, { headers: { "user-agent": EVIDENCE.ua, accept: "application/json" } });
   if (!r.ok) throw new Error("crossref " + r.status);
   const j = await r.json();
@@ -36,7 +42,7 @@ export async function resolveSource(src, fetchFn) {
   for (const it of items) {
     const title = Array.isArray(it.title) ? it.title[0] : it.title;
     const yr = it.issued && it.issued["date-parts"] && it.issued["date-parts"][0] && it.issued["date-parts"][0][0];
-    if (titleMatch(src.title, title) >= 0.8 && (!yr || Math.abs(Number(yr) - src.year) <= 1)) return { doi: String(it.DOI).toLowerCase(), title, year: yr || null };
+    if (titleMatch(src.title, title) >= 0.8 && (!yr || Math.abs(Number(yr) - src.year) <= 1)) return { doi: String(it.DOI).toLowerCase(), title, year: yr || null, authors: crossrefAuthors(it.author) };
   }
   return null;
 }
@@ -68,17 +74,18 @@ export async function checkEntries(db, now, fetchFn, entries = ENTRIES) {
   const rows = (await db.prepare("SELECT entry, at FROM evidence_checks").all()).results || [];
   const checked = Object.fromEntries(rows.map(r => [r.entry, r.at]));
   const out = { checked: [], resolved: 0, leads: 0, errors: [] };
-  const srcRows = (await db.prepare("SELECT key, doi, tried FROM sources").all()).results || [];
+  const srcRows = (await db.prepare("SELECT key, doi, tried, authors FROM sources").all()).results || [];
   const known = Object.fromEntries(srcRows.map(r => [r.key, r]));
   for (const e of pickBatch(checked, EVIDENCE.batch, entries)) {
     let ok = true;
     for (let i = 0; i < e.sources.length; i++) {
       const k = sourceKey(e.id, i), row = known[k];
-      if (row && (row.doi || now - row.tried < EVIDENCE.retry_unresolved_days * 86400000)) continue;
+      // a source resolved before full names were kept (authors NULL) is looked up once more, so every resolved source gets them
+      if (row && ((row.doi && row.authors != null) || (!row.doi && now - row.tried < EVIDENCE.retry_unresolved_days * 86400000))) continue;
       try {
         const hit = await resolveSource(e.sources[i], fetchFn);
-        await db.prepare("INSERT INTO sources (key, entry, doi, found_title, tried) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(key) DO UPDATE SET doi=excluded.doi, found_title=excluded.found_title, tried=excluded.tried")
-          .bind(k, e.id, hit ? hit.doi : null, hit ? String(hit.title).slice(0, 400) : null, now).run();
+        await db.prepare("INSERT INTO sources (key, entry, doi, found_title, tried, authors) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT(key) DO UPDATE SET doi=excluded.doi, found_title=excluded.found_title, tried=excluded.tried, authors=excluded.authors")
+          .bind(k, e.id, hit ? hit.doi : null, hit ? String(hit.title).slice(0, 400) : null, now, hit ? JSON.stringify(hit.authors || []) : null).run();
         if (hit) out.resolved++;
       } catch (err) { out.errors.push(e.id + " source " + i + ": " + (err && err.message)); }
     }
