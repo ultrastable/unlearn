@@ -14,7 +14,7 @@ import { ENTRIES, CATEGORIES } from "./entries.js";
 import { checkEntries, freshness, reviewQueue } from "./evidence.js";
 import { LAB, triagePrompt, checkTriage, regrade, discover, draftPrompt, checkDraft, variantPrompt, checkVariant, decide, pickForVariant, SEARCHES, publishable, mythOfDay, dayIndex } from "./lab.js";
 import { socialQueue } from "./promote.js";
-import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage, draftPage, feed, changePage, planPage } from "./site.js";
+import { home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage, draftPage, feed, jsonFeed, FAVICON, changePage, planPage } from "./site.js";
 import { eventKey, practiceStats } from "./change.js";
 
 const SCHEMA = [
@@ -336,6 +336,8 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     if (p === "/" || p === "/index.html") { await catchUp(env, ctx, now); const m = await encyclopediaMetrics(db, now); return html(home({ stats: m, surprising: m.surprising, grades: await grades(db), today: mythOfDay(now), drafts: (await published(db)).slice(0, 3) })); }
     if (p === "/today") return new Response(null, { status: 302, headers: { location: "/e/" + mythOfDay(now).id + "?from=today", "cache-control": "no-store" } });
     if (p === "/feed.xml") return new Response(feed(now, await published(db)), { headers: { "content-type": "application/atom+xml; charset=utf-8", "cache-control": "public, max-age=3600" } });
+    if (p === "/feed.json") return new Response(JSON.stringify(jsonFeed(now, await published(db))), { headers: { "content-type": "application/feed+json; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
+    if (p === "/favicon.ico" || p === "/favicon.svg") return new Response(FAVICON, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=604800" } });
     if (p.startsWith("/d/")) {
       const id = Number(p.slice(3)); const c = Number.isInteger(id) ? (await published(db)).find(x => x.id === id) : null;
       if (c) return html(draftPage(c), 200, true);

@@ -72,7 +72,7 @@ fieldset.plans{border:0;padding:0;margin:8px 0;display:grid;gap:8px}label.opt{di
 export function layout(title, body, { desc = "", script = "", path = "/" } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc || "Unlearn: popular beliefs where the evidence points another way, with graded evidence and named sources.")}">
-<link rel="canonical" href="https://unlearn.ultrastable.org${esc(path)}"><link rel="alternate" type="application/atom+xml" title="Unlearn: myth of the day" href="/feed.xml"><style>${CSS}</style></head><body>
+<link rel="canonical" href="https://unlearn.ultrastable.org${esc(path)}"><link rel="alternate" type="application/atom+xml" title="Unlearn: myth of the day" href="/feed.xml"><link rel="alternate" type="application/feed+json" title="Unlearn: myth of the day" href="/feed.json"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><style>${CSS}</style></head><body>
 <header class="top"><nav aria-label="Main"><a class="brand" href="/">Un<span>learn</span></a><a href="/today">Today</a><a href="/topics">Topics</a><a href="/change">Change</a><a href="/play">Play</a><a href="/lab">Lab</a><a href="/how">How it works</a><a href="/coach">Coach a child</a></nav></header>
 <main>${body}</main>
 <footer>Unlearn runs on <a href="https://ultrastable.io">Ultrastable</a>, the foundation for any autonomous system. Every entry cites its sources; an hourly loop checks them and watches for new reviews. Data: <a href="/api/entries.json">/api/entries.json</a>. Follow along: <a href="/feed.xml">feed</a>.${SIBLINGS.length ? ` Also run on Ultrastable: ${SIBLINGS.map(x => `<a href="${esc(x.home)}">${esc(x.name)}</a>`).join(", ")}.` : ""}</footer>
@@ -245,19 +245,33 @@ ${d.story ? `<ol class="timeline"><li><span class="k">The famous story</span>${e
 
 // Atom feed: the myth of the day for the last 30 days, and Lab drafts readers voted up. Ids are stable, so readers see each item once.
 const xesc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
-export function feed(now, drafts = [], pick = null) {
+// Items shared by the Atom feed and the JSON Feed (STICKY-1 reads the JSON one): one list, two formats, so they never disagree.
+export function feedItems(now, drafts = [], pick = null) {
   const base = "https://unlearn.ultrastable.org", day = Math.floor(now / 86400000);
   const items = [];
   for (let k = 0; k < 30; k++) {
     const t = (day - k) * 86400000, e = (pick || mythOfDay)(t);
     if (!e) continue;
-    items.push({ id: `${base}/today/${new Date(t).toISOString().slice(0, 10)}`, url: `${base}/e/${e.id}`, at: new Date(t).toISOString(), title: "Myth of the day: " + e.belief, text: e.says });
+    items.push({ id: `${base}/today/${new Date(t).toISOString().slice(0, 10)}`, url: `${base}/e/${e.id}`, at: new Date(t).toISOString(), title: "Myth of the day: " + e.belief, text: e.says, tags: [e.cat].filter(Boolean), kind: "myth-of-the-day", depth: (e.sources || []).length });
   }
-  for (const c of drafts) items.push({ id: `${base}/d/${c.id}`, url: `${base}/d/${c.id}`, at: new Date(c.found).toISOString(), title: "Lab draft: " + c.draft.belief, text: (c.draft.later || c.draft.says) + " (Draft from one paper, not yet graded.)" });
+  for (const c of drafts) items.push({ id: `${base}/d/${c.id}`, url: `${base}/d/${c.id}`, at: new Date(c.found).toISOString(), title: "Lab draft: " + c.draft.belief, text: (c.draft.later || c.draft.says) + " (Draft from one paper, not yet graded.)", tags: ["lab", c.kind || "myth"], kind: "lab-draft", depth: 1 });
   items.sort((a, b) => b.at.localeCompare(a.at));
+  return items;
+}
+export function feed(now, drafts = [], pick = null) {
+  const base = "https://unlearn.ultrastable.org", items = feedItems(now, drafts, pick);
   return `<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom"><title>Unlearn: myth of the day</title><link href="${base}/"/><link rel="self" href="${base}/feed.xml"/><id>${base}/feed.xml</id><updated>${items.length ? items[0].at : new Date(now).toISOString()}</updated>
 ${items.map(i => `<entry><title>${xesc(i.title)}</title><link href="${xesc(i.url)}"/><id>${xesc(i.id)}</id><updated>${i.at}</updated><summary>${xesc(i.text)}</summary></entry>`).join("\n")}</feed>`;
 }
+// JSON Feed 1.1: the content feed the platform's stickiness step reads (instances/ultrastable/progress.json `stickiness.content_feed`).
+export function jsonFeed(now, drafts = [], pick = null) {
+  const base = "https://unlearn.ultrastable.org";
+  return { version: "https://jsonfeed.org/version/1.1", title: "Unlearn: myth of the day", home_page_url: base + "/", feed_url: base + "/feed.json",
+    description: "Popular beliefs set against the evidence: a myth of the day and Lab drafts readers voted up. Runs on Ultrastable.",
+    items: feedItems(now, drafts, pick).map(i => ({ id: i.id, url: i.url, title: i.title, content_text: i.text, date_published: i.at, tags: i.tags, _kind: i.kind, _depth: i.depth })) };
+}
+// A small mark for browser tabs; every browser asks for /favicon.ico, so serving it stops a 404 on each first visit.
+export const FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1f2937"/><text x="32" y="44" text-anchor="middle" font-family="system-ui,sans-serif" font-size="34" font-weight="800" fill="#fbbf24">U</text></svg>';
 
 export function notFound() {
   return layout("Not found · Unlearn", `<h1>Nothing here</h1><p class="lede">That page does not exist. Try a topic, or search.</p><form class="pill" action="/search" role="search"><input name="q" aria-label="Search beliefs"><button class="btn primary" type="submit">Search</button></form><p><a class="btn" href="/topics">Browse topics</a></p>`);

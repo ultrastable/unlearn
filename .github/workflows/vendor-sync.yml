@@ -1,0 +1,43 @@
+name: vendor-sync
+# SPDX-License-Identifier: LicenseRef-Ultrastable-USL-1.0
+# TENANT-SYNC-1: keeps vendor/ultrastable/ equal to the core's main, so a model the core retires or a sibling the core adds reaches Unlearn
+# with no person. scripts/vendor_sync.mjs fetches the files the core's registry maps for this tenant (public repository, no credential), the
+# tests run on the result, and only a green result is committed to main. The platform's tenant-repos workflow sees main move past the last
+# deploy and redeploys the Worker (foundation/tenantrepos.py --behind), so the refresh reaches production the same day.
+# budget: ~1 min per run, once a day (public repository: free minutes)
+# trigger: daily (the core's modelwatch and stakeholder changes land at most daily); manual dispatch
+# free-alternative: `node scripts/vendor_sync.mjs && node --test worker/*.test.mjs` from a cloud-hosted agent session
+on:
+  schedule:
+    - cron: "11 5 * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: vendor-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: ${{ vars.HALT != '1' }}  # HALT-1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with: {node-version: 24}
+      - name: Fetch the core's current copies
+        env: {GITHUB_TOKEN: "${{ github.token }}"}
+        run: node scripts/vendor_sync.mjs
+      - name: Test before committing (a core change that breaks Unlearn stays out and turns this run red)
+        run: node --test --no-warnings worker/*.test.mjs
+      - name: Commit to main
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then echo "vendored files already match core main"; exit 0; fi
+          git config user.name "ultrastable-vendor-sync"; git config user.email "vendor-sync@users.noreply.github.com"
+          git add vendor/ultrastable
+          git commit -m "vendor-sync: refresh core files from $(head -1 vendor/ultrastable/VENDORED_FROM) (TENANT-SYNC-1)"
+          git push origin HEAD:main
+      - name: Probe (red while any vendored file differs from core main)
+        env: {GITHUB_TOKEN: "${{ github.token }}"}
+        run: node scripts/vendor_sync.mjs --check
