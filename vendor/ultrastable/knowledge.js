@@ -267,6 +267,63 @@ export function calibrate(rows, { expect = KG_DEFAULTS.expect, min = 3, floor = 
   return Object.fromEntries(Object.entries(t).map(([k, s]) => [k, s.n < min ? 1 : Math.min(ceil, Math.max(floor, ((s.kept + 1) / (s.n + 2)) / expect))]));
 }
 
+// Zero-config extraction (folded in from DATAGRAPH-1): every row of every table in the system's own D1 is a record, so a system with no mappers
+// still has a graph of all its data. A column whose text equals exactly one other row's key becomes an edge named after the column (foreign keys
+// found from the data); an integer is followed only when the column names the table (programme_id -> programmes), because small integers collide.
+// Tables and columns that look secret or personal are never read, the engine's own tables are skipped, and each table is capped.
+// The graph is served publicly (/api/graph.json), so anything that may hold a person's words or identity is left out by name: messages, mail,
+// prompts, replies, visitors, subscribers, suggestions, notes, logs and audit trails, as well as secrets.
+export const TABLE_DEFAULTS = { per_table: 200, max_tables: 40, skip_tables: /^(kg_|sqlite_|_cf_|d1_)|log|audit|provenance|told|meta_|inbox|counter|sample|cache|beat|lock|run/i,
+  private: /secret|token|password|passwd|credential|cred_|auth|session|cookie|oauth|key_?hash|email|mail|phone|address|contact|ip_?addr|user|agent_string|pseudonym|person|people|visitor|subscriber|suggest|message|prompt|repl(y|ies)|note|text|body|abstract|draft|raw|payload|answer/i };
+const LABEL_COLS = ['title', 'name', 'label', 'statement', 'subject', 'belief', 'question', 'summary'];
+const singular = t => t.replace(/ies$/, 'y').replace(/s$/, '');
+// as: { table: kind } for tables another mapper already emits (the platform's items, objectives, metrics): they are read so other rows can
+// point at them, never emitted twice, and a pointer lands on the other mapper's node id (`${kind}:${key}`).
+export async function tableRecords(db, { only = null, skip = [], as = {}, ...o } = {}) {
+  const S = { ...TABLE_DEFAULTS, ...o };
+  const names = ((await db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`).all()).results || []).map(r => r.name)
+    .filter(t => !S.skip_tables.test(t) && !S.private.test(t) && !skip.includes(t) && (!only || only.includes(t))).slice(0, S.max_tables);
+  const tables = [];
+  for (const t of names) {
+    const cols = ((await db.prepare(`PRAGMA table_info("${t.replace(/"/g, '')}")`).all()).results || []);
+    const keep = cols.map(c => c.name).filter(c => !S.private.test(c));
+    const pk = (cols.find(c => c.pk === 1) || cols.find(c => c.name === 'id') || {}).name;
+    if (!pk || !keep.length) continue;
+    const rows = (await db.prepare(`SELECT ${keep.map(c => `"${c}"`).join(', ')} FROM "${t}" ORDER BY "${pk}" DESC LIMIT ${Number(S.per_table) | 0}`).all()).results || [];
+    tables.push({ t, pk, keep, rows });
+  }
+  const label = (t, r, pk) => String(LABEL_COLS.map(c => r[c]).find(v => v != null && String(v).trim()) ?? `${singular(t)} ${r[pk]}`).slice(0, 200);
+  const kindOf = t => as[t] || t;
+  const byKey = new Map(), byTable = new Map();
+  for (const { t, pk, rows } of tables) for (const r of rows) {
+    const k = String(r[pk]), ref = { table: kindOf(t), key: k, label: label(t, r, pk) };
+    (byTable.get(t) || byTable.set(t, new Map()).get(t)).set(k, ref);
+    if (typeof r[pk] === 'string' && k.length >= 4) byKey.set(k, byKey.has(k) ? null : ref);  // null: two rows share the key, so it names no one row
+  }
+  const out = [];
+  for (const { t, pk, keep, rows } of tables) for (const r of rows) {
+    const refs = [];
+    for (const c of keep) {
+      const v = r[c]; if (c === pk || v == null) continue;
+      if (typeof v === 'string' && v.length >= 4 && byKey.get(v) && byKey.get(v).table + byKey.get(v).key !== kindOf(t) + String(r[pk])) refs.push({ col: c, ...byKey.get(v) });
+      else if (Number.isInteger(v)) {
+        const base = c.replace(/_?id$/i, '');
+        const target = base && [...byTable.keys()].find(x => x !== t && (x === base || singular(x) === base || singular(x) === singular(base)));
+        const hit = target && byTable.get(target).get(String(v));
+        if (hit) refs.push({ col: c, ...hit });
+      }
+    }
+    if (!as[t]) out.push({ type: 'row', source: `row/${t}/${r[pk]}`, data: { table: t, key: String(r[pk]), label: label(t, r, pk), refs } });
+  }
+  return out;
+}
+export const TABLE_MAPPERS = {
+  row: (d, { node, edge }) => {
+    const me = node(d.table, d.label, { table: d.table }, `${d.table}:${d.key}`);
+    for (const x of d.refs) edge(me, x.col, node(x.table, x.label, { table: x.table }, `${x.table}:${x.key}`));
+  },
+};
+
 // One beat. Returns a summary; a failure is recorded in kg_runs with its message and returned, never swallowed.
 export async function runKg(db, { tenant = '', records = [], mappers = {}, spec = {}, aliases = {}, now = Date.now(), complete = true } = {}) {
   const t0 = Date.now(), S = { ...KG_DEFAULTS, ...spec };
