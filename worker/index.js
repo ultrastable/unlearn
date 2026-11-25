@@ -8,7 +8,7 @@
 // Year-long safeguards: instances/unlearn/runway.json. Tests: instances/unlearn/worker/logic.test.mjs, worker.test.mjs.
 import { MOVES, AGE_BANDS } from "./moves.js";
 import { LIMITS, LED, FIRST_KINDS, nextKinds, topicOf, pickMove, render, guardRewording, classifyNote, dueFollowups, metrics, openPhase, gateReport, PHASES } from "./logic.js";
-import MODELS from "../../../doctrine/models.json" with { type: "json" };
+import MODELS from "../vendor/ultrastable/models.json" with { type: "json" };
 import { page } from "./page.js";
 import { ENTRIES, CATEGORIES } from "./entries.js";
 import { checkEntries, freshness, reviewQueue } from "./evidence.js";

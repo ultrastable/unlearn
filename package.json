@@ -1,0 +1,9 @@
+{
+  "name": "unlearn",
+  "private": true,
+  "type": "module",
+  "description": "Unlearn: popular beliefs and famous findings set against the evidence. A tenant system running on Ultrastable.",
+  "scripts": {
+    "test": "node --test --no-warnings worker/*.test.mjs"
+  }
+}
