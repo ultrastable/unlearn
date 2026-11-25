@@ -1,19 +1,19 @@
 {
- "_doc": "SEED-LIFECYCLE-1 answers for the Unlearn tenant (PR 1852). Safeguards map to instances/unlearn/runway.json; read by foundation/seedlife.py.",
+ "_doc": "SEED-LIFECYCLE-1 answers for the Unlearn tenant (PR 1852). Safeguards map to ./runway.json; read by foundation/seedlife.py.",
  "slug": "unlearn",
  "build": {
   "paths": [
-   "instances/unlearn/worker/index.js",
-   "instances/unlearn/worker/logic.js",
-   "instances/unlearn/worker/entries.js",
-   "instances/unlearn/worker/evidence.js",
-   "instances/unlearn/worker/site.js",
-   "instances/unlearn/worker/lab.js"
+   "./worker/index.js",
+   "./worker/logic.js",
+   "./worker/entries.js",
+   "./worker/evidence.js",
+   "./worker/site.js",
+   "./worker/lab.js"
   ],
   "tests": [
-   "instances/unlearn/worker/worker.test.mjs",
-   "instances/unlearn/worker/encyclopedia.test.mjs",
-   "instances/unlearn/worker/lab.test.mjs"
+   "./worker/worker.test.mjs",
+   "./worker/encyclopedia.test.mjs",
+   "./worker/lab.test.mjs"
   ]
  },
  "deploy": {
@@ -35,7 +35,7 @@
   },
   "budget": {
    "status": "closed",
-   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "probe": "cmd:node --test ./worker/worker.test.mjs",
    "how": "runway.json ai-cost: AI_DAILY_CAP and library fallback; abuse cap 30 writes per source per day"
   },
   "cost-alerts": {
@@ -46,7 +46,7 @@
   },
   "dependencies": {
    "status": "closed",
-   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "probe": "cmd:node --test ./worker/worker.test.mjs",
    "how": "runway.json dependency-drift: zero npm dependencies, pinned compatibility_date"
   },
   "runtime": {
@@ -54,7 +54,7 @@
   },
   "models": {
    "status": "closed",
-   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "probe": "cmd:node --test ./worker/worker.test.mjs",
    "how": "runway.json model-retired: moves come from the library with no model; re-wording is optional"
   },
   "health": {
@@ -70,12 +70,12 @@
   },
   "improvement": {
    "status": "closed",
-   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "probe": "cmd:node --test ./worker/worker.test.mjs",
    "how": "hourly beat re-learns move weights by Beta sampling on 14-day outcomes and opens the next phase when its gates hold"
   },
   "privacy": {
    "status": "closed",
-   "probe": "cmd:node --test instances/unlearn/worker/worker.test.mjs",
+   "probe": "cmd:node --test ./worker/worker.test.mjs",
    "how": "runway.json child-data and storage-growth: no child accounts before phase 3 prerequisites; retention prunes text after 400 days. Phase 3 needs a controller entity (owner_only unlearn-controller-entity, default: phase 3 stays closed)"
   }
  }

@@ -24,7 +24,7 @@ Telling people they are wrong rarely changes a mind, so every entry follows the 
 | Return visits: a myth of the day in a fixed order that covers every entry before repeating (`/today`), an Atom feed of the last 30 days and voted-up Lab drafts (`/feed.xml`), a daily streak kept only in the reader's browser, and voted-up drafts with their own pages (`/d/<id>`, labelled a draft from one paper; citation from the index) | `mythOfDay`, `publishable` in `worker/lab.js`; `feed`, `draftPage` in `worker/site.js` |
 | Reader measures: anonymous guess and "did this change your view" counts per entry; surprise and shift shares | `POST /api/guess`, `POST /api/shift`, `/api/metrics` |
 | Data and probes | `/api/entries.json`, `/api/freshness` (503 when an entry is unchecked for 7 days), `/api/leads`, `/api/review-queue.json`, `/sitemap.xml` |
-| Tests | `node --test instances/unlearn/worker/*.test.mjs` |
+| Tests | `node --test ./worker/*.test.mjs` |
 
 ## The coaching tool (/coach)
 
@@ -65,7 +65,7 @@ The research behind this ([Homo Ludens, self-directed learning, and AI-facilitat
 
 ### Coaching phase 1: built
 
-`worker/` is the app: one Worker (`ultrastable-unlearn` in `doctrine/topology.json`), one D1 database, one hourly cron, no secrets and no npm dependencies. Tests: `node --test instances/unlearn/worker/*.test.mjs`.
+`worker/` is the app: one Worker (`ultrastable-unlearn` in `doctrine/topology.json`), one D1 database, one hourly cron, no secrets and no npm dependencies. Tests: `node --test ./worker/*.test.mjs`.
 
 - **Ask bar** with a mic and age chips; the adult's curiosities stay in their own browser as tokens.
 - **Coaching moves**: 23 library moves in four kinds (ask, try, connect, wait), picked by Beta sampling over 14-day outcomes. A Workers AI model may re-word one inside a daily cap, behind the answer guard; any failure keeps the library text.

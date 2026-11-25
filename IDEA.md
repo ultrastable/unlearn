@@ -25,7 +25,7 @@ Unlearn is an evidence encyclopedia of popular beliefs that the evidence contrad
 
 - Anyone holding a popular belief the evidence contradicts, especially beliefs common in American public debate
 - Teachers, journalists and policy staff who want a cited, graded summary to point people to
-- The adults around curious children, through the coaching tool at /coach (no child accounts or child data; its phases are in instances/unlearn/phases.json)
+- The adults around curious children, through the coaching tool at /coach (no child accounts or child data; its phases are in ./phases.json)
 
 # First outcomes
 

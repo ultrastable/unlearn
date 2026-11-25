@@ -3,10 +3,11 @@ name: ci
 # Unlearn's own tests on every pull request and push to main. Deploys are done by the Ultrastable platform, which builds this repository's
 # main into the ultrastable-unlearn Worker (doctrine/topology.json `source` in ultrastable/ultrastable) daily and on dispatch.
 # budget: ~1 min per run (public repository: free minutes)
-# trigger: pull_request and push to main
+# trigger: pull_request, push to main, and dispatch (the platform's progress monitor runs it when Unlearn stalls)
 # free-alternative: `node --test worker/*.test.mjs` from a cloud-hosted agent session
 on:
   pull_request:
+  workflow_dispatch:
   push:
     branches: [main]
 permissions:
