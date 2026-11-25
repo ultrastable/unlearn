@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { handle, labBeat, grades, wording } from './index.js';
 import { ENTRIES } from './entries.js';
-import { grounded, noNewFacts, checkTriage, regrade, checkDraft, checkVariant, decide, pickForVariant, discover, LAB, publishable, mythOfDay, SEARCHES } from './lab.js';
+import { grounded, noNewFacts, checkTriage, regrade, checkDraft, checkVariant, decide, pickForVariant, discover, discoverBacklog, LAB, publishable, mythOfDay, SEARCHES } from './lab.js';
 import { reviewQueue } from './evidence.js';
 
 function d1() {
@@ -201,4 +201,28 @@ test('the JSON Feed carries the same items as the Atom feed, and the favicon is 
   assert.ok(new Set(j.items.flatMap(i => i.tags)).size >= 2, 'more than one topic across the month');
   for (const p of ['/favicon.ico', '/favicon.svg']) { const f = await handle(get(p), env, now); assert.equal(f.status, 200); assert.match(f.headers.get('content-type'), /svg/); }
   assert.match(await (await handle(get('/'), env, now)).text(), /application\/feed\+json/);
+});
+
+test('STATIC-1: an unopposed guarded draft publishes itself after its wait; votes against keep it back; no DOI never publishes', () => {
+  const H = 3600000, found = Date.UTC(2026, 10, 20), after = found + LAB.publish_after_hours * H;
+  const c = { status: 'drafted', ref: 'doi:10.1/x', yes: 0, no: 0, found };
+  assert.equal(publishable(c), false, 'without a clock only votes publish');
+  assert.equal(publishable(c, after - H), false, 'not before the wait');
+  assert.equal(publishable(c, after), true, 'publishes itself after the wait');
+  assert.equal(publishable({ ...c, no: 1 }, after), false, 'a vote against holds it back');
+  assert.equal(publishable({ ...c, ref: 'epmc:9' }, after + 1000 * H), false, 'never without a DOI or PubMed id');
+  assert.equal(publishable({ ...c, status: 'rejected' }, after + 1000 * H), false);
+});
+
+test('STATIC-1: the back catalogue is walked page by page and wraps around at the end', async () => {
+  const seen = [];
+  const f = async (url) => { const u = new URL(url); seen.push(u.searchParams.get('cursorMark'));
+    const cur = u.searchParams.get('cursorMark');
+    if (cur === '*') return Response.json({ nextCursorMark: 'p2', resultList: { result: [{ id: 'a', doi: '10.5/a', title: 'Myths about memory: a review', pubYear: '2019', abstractText: ABSTRACT }] } });
+    return Response.json({ nextCursorMark: cur, resultList: { result: [] } }); };
+  const a = await discoverBacklog('*', f);
+  assert.deepEqual(a.items.map(x => x.ref), ['doi:10.5/a']); assert.equal(a.next, 'p2');
+  const b = await discoverBacklog('p2', f);
+  assert.equal(b.items.length, 0); assert.equal(b.next, '*', 'the end wraps to the top');
+  assert.deepEqual(seen, ['*', 'p2']);
 });

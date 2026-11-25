@@ -14,15 +14,18 @@ import { titleMatch, EVIDENCE } from "./evidence.js";
 
 export const LAB = {
   triage_per_beat: 3,
-  drafts_per_beat: 2,
-  discover_every_hours: 24,
+  drafts_per_beat: 3,
+  discover_every_hours: 6,   // newest papers, plus one page of the back catalogue per search, every six hours
+  backlog_page: 25,          // back-catalogue page size per search (Europe PMC cursorMark walk; wraps around at the end)
+  backlog_queue_max: 60,     // skip the back catalogue while this many candidates still wait to be drafted
   regrade_min: 2,            // classified reviews needed before an entry is marked reinforced or challenged
   variant_min_answers: 20,   // an entry needs this many "changed my view" answers before a new wording is drafted
   variant_min_arm: 40,       // answers per arm before a trial can be decided
   variant_max_arm: 300,      // a trial with no clear winner by then keeps the current wording
   z: 1.96,
   publish_min_yes: 3,        // a Lab draft gets its own page once readers vote it up: at least this many yes votes ...
-  publish_net: 2             // ... and this many more yes than no. It stays labelled a draft from one source.
+  publish_net: 2,            // ... and this many more yes than no. It stays labelled a draft from one source.
+  publish_after_hours: 48    // STATIC-1: with no votes either way, a guarded draft publishes itself after this long; readers voting it down take it back
 };
 export const STANCES = ["supports_belief", "contradicts_belief", "mixed", "unrelated"];
 const RANKED = Object.entries(STRENGTH).sort((a, b) => a[1].rank - b[1].rank).map(([k]) => k);
@@ -78,17 +81,31 @@ export const DISCOVER_QUERY = '(TITLE:"myth" OR TITLE:"myths" OR TITLE:"misconce
 // UNLEARN-CHANGE-1: reviews of interventions people can do themselves, drafted as candidate practices that run against common advice.
 export const PRACTICE_QUERY = '(TITLE:"intervention" OR TITLE:"interventions" OR TITLE:"training" OR TITLE:"strategies") AND (TITLE:"meta-analysis" OR TITLE:"systematic review") AND (TITLE:"habit" OR TITLE:"self-control" OR TITLE:"procrastination" OR TITLE:"self-compassion" OR TITLE:"implementation intention" OR TITLE:"loneliness" OR TITLE:"well-being" OR TITLE:"wellbeing" OR TITLE:"motivation" OR TITLE:"behaviour change" OR TITLE:"behavior change" OR TITLE:"emotion regulation" OR TITLE:"study strategies")';
 export const SEARCHES = [{ kind: "myth", q: DISCOVER_QUERY }, { kind: "retold", q: RETOLD_QUERY }, { kind: "practice", q: PRACTICE_QUERY }];
-export async function discover(since, fetchFn, entries = ENTRIES, query = DISCOVER_QUERY, kind = "myth") {
-  const url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=core&pageSize=10&sort=FIRST_PDATE_D%20desc&query=" + encodeURIComponent(`${query} AND FIRST_PDATE:[${since} TO 3000-01-01]`);
-  const r = await fetchFn(url, { headers: { "user-agent": EVIDENCE.ua, accept: "application/json" } });
-  if (!r.ok) throw new Error("europepmc " + r.status);
-  const list = ((await r.json()).resultList || {}).result || [];
+function toCandidates(list, entries, kind) {
   const cited = entries.flatMap(e => e.sources.map(s => s.title));
   return list.filter(x => x.abstractText && (x.doi || x.pmid) && !cited.some(t => titleMatch(t, x.title) >= 0.8)).map(x => ({ kind,
     ref: x.doi ? "doi:" + String(x.doi).toLowerCase() : x.pmid ? "pmid:" + x.pmid : "epmc:" + x.id, title: String(x.title || "").slice(0, 400),
     venue: String(x.journalTitle || (x.journalInfo && x.journalInfo.journal && x.journalInfo.journal.title) || "").slice(0, 200), year: Number(x.pubYear) || null,
     url: x.doi ? "https://doi.org/" + x.doi : x.pmid ? "https://europepmc.org/article/MED/" + x.pmid : "https://europepmc.org/search?query=" + encodeURIComponent(x.title || ""),
     abstract: String(x.abstractText).replace(/<[^>]+>/g, " ").slice(0, 4000) }));
+}
+async function epmc(fetchFn, params) {
+  const url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?format=json&resultType=core&" + new URLSearchParams(params).toString();
+  const r = await fetchFn(url, { headers: { "user-agent": EVIDENCE.ua, accept: "application/json" } });
+  if (!r.ok) throw new Error("europepmc " + r.status);
+  return r.json();
+}
+export async function discover(since, fetchFn, entries = ENTRIES, query = DISCOVER_QUERY, kind = "myth") {
+  const j = await epmc(fetchFn, { pageSize: "10", sort: "FIRST_PDATE_D desc", query: `${query} AND FIRST_PDATE:[${since} TO 3000-01-01]` });
+  return toCandidates((j.resultList || {}).result || [], entries, kind);
+}
+// STATIC-1: the newest-only search found about one usable paper a week, so the encyclopedia stood still. This walks the whole back catalogue
+// for the same query a page at a time (Europe PMC cursorMark) and starts again from the top when it reaches the end.
+export async function discoverBacklog(cursor, fetchFn, entries = ENTRIES, query = DISCOVER_QUERY, kind = "myth") {
+  const j = await epmc(fetchFn, { pageSize: String(LAB.backlog_page), cursorMark: cursor || "*", query });
+  const list = (j.resultList || {}).result || [];
+  const next = j.nextCursorMark && j.nextCursorMark !== (cursor || "*") && list.length ? j.nextCursorMark : "*";
+  return { items: toCandidates(list, entries, kind), next };
 }
 export function draftPrompt(c) {
   if (c.kind === "retold") return [{ role: "system", content: "This abstract may report a replication or re-analysis of a famous study. Reply with JSON only: {\"belief\": the popular belief the famous study is cited for, in one plain sentence as people say it, \"story\": what the famous study was taken to show, in one plain sentence, \"later\": what this paper found, in one or two plain sentences, using only facts in the abstract, \"quote\": one sentence copied exactly from the abstract that supports what it found}. If the abstract does not revisit a well-known finding, reply {\"belief\": null}." },
@@ -122,8 +139,13 @@ export function checkDraft(out, c) {
 }
 
 // A draft readers voted up gets its own page. Its citation came from the search index itself (a DOI or PubMed id), never from the model.
-export function publishable(c) {
-  return c.status === "drafted" && /^(doi|pmid):/.test(c.ref || "") && c.yes >= LAB.publish_min_yes && c.yes - c.no >= LAB.publish_net;
+// A draft readers voted up gets its own page at once. With `now`, a draft nobody voted down also publishes itself publish_after_hours after it was
+// found (STATIC-1, Rowan 2026-11-25: "Static content is NOT autonomous"): the encyclopedia grows on its own, every guard above still holds, and the
+// page keeps saying it is a draft from one paper, not yet graded.
+export function publishable(c, now = null) {
+  if (c.status !== "drafted" || !/^(doi|pmid):/.test(c.ref || "")) return false;
+  if (c.yes >= LAB.publish_min_yes && c.yes - c.no >= LAB.publish_net) return true;
+  return now !== null && c.found && now - c.found >= LAB.publish_after_hours * 3600000 && c.no <= c.yes;
 }
 
 // ---- myth of the day: a fixed shuffled order, one entry a day, cycling through every entry before any repeats -----------------------------
