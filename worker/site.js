@@ -252,9 +252,9 @@ export function feedItems(now, drafts = [], pick = null) {
   for (let k = 0; k < 30; k++) {
     const t = (day - k) * 86400000, e = (pick || mythOfDay)(t);
     if (!e) continue;
-    items.push({ id: `${base}/today/${new Date(t).toISOString().slice(0, 10)}`, url: `${base}/e/${e.id}`, at: new Date(t).toISOString(), title: "Myth of the day: " + e.belief, text: e.says, tags: [e.cat].filter(Boolean) });
+    items.push({ id: `${base}/today/${new Date(t).toISOString().slice(0, 10)}`, url: `${base}/e/${e.id}`, at: new Date(t).toISOString(), title: "Myth of the day: " + e.belief, text: e.says, tags: [e.cat].filter(Boolean), kind: "myth-of-the-day", depth: (e.sources || []).length });
   }
-  for (const c of drafts) items.push({ id: `${base}/d/${c.id}`, url: `${base}/d/${c.id}`, at: new Date(c.found).toISOString(), title: "Lab draft: " + c.draft.belief, text: (c.draft.later || c.draft.says) + " (Draft from one paper, not yet graded.)", tags: ["lab", c.kind || "myth"] });
+  for (const c of drafts) items.push({ id: `${base}/d/${c.id}`, url: `${base}/d/${c.id}`, at: new Date(c.found).toISOString(), title: "Lab draft: " + c.draft.belief, text: (c.draft.later || c.draft.says) + " (Draft from one paper, not yet graded.)", tags: ["lab", c.kind || "myth"], kind: "lab-draft", depth: 1 });
   items.sort((a, b) => b.at.localeCompare(a.at));
   return items;
 }
@@ -268,7 +268,7 @@ export function jsonFeed(now, drafts = [], pick = null) {
   const base = "https://unlearn.ultrastable.org";
   return { version: "https://jsonfeed.org/version/1.1", title: "Unlearn: myth of the day", home_page_url: base + "/", feed_url: base + "/feed.json",
     description: "Popular beliefs set against the evidence: a myth of the day and Lab drafts readers voted up. Runs on Ultrastable.",
-    items: feedItems(now, drafts, pick).map(i => ({ id: i.id, url: i.url, title: i.title, content_text: i.text, date_published: i.at, tags: i.tags })) };
+    items: feedItems(now, drafts, pick).map(i => ({ id: i.id, url: i.url, title: i.title, content_text: i.text, date_published: i.at, tags: i.tags, _kind: i.kind, _depth: i.depth })) };
 }
 // A small mark for browser tabs; every browser asks for /favicon.ico, so serving it stops a 404 on each first visit.
 export const FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1f2937"/><text x="32" y="44" text-anchor="middle" font-family="system-ui,sans-serif" font-size="34" font-weight="800" fill="#fbbf24">U</text></svg>';
