@@ -43,6 +43,7 @@ ${phase >= 2 ? `<details class="muted" style="margin-top:12px"><summary>Coaching
 <div class="row" style="margin-top:8px"><button type="button" id="savenote">Save note</button><span id="tip" class="muted"></span></div></section>
 <h2>Your explorations</h2><p class="muted">Kept only in this browser.</p><div id="mine"><p class="muted">None yet.</p></div>
 <h2>How it learns</h2><p class="muted">Every move is a question to ask, something to try, someone to meet, or a reason to wait. Moves that keep children exploring on their own after 14 days get picked more often. No grades, streaks or child accounts. <a href="/api/metrics">Live numbers</a></p>
+<p class="muted">Unlearn's coaching side opens in phases, each gated on measured results. <a href="/api/phase">Current phase</a> · <a href="/">The encyclopedia</a> · Unlearn runs on <a href="https://ultrastable.io/">Ultrastable</a>.</p>
 </main><script>
 const $=s=>document.querySelector(s);let age=null,cur=null;
 const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};

@@ -1,0 +1,24 @@
+{
+ "identity": {
+  "name": "Unlearn",
+  "slug": "unlearn",
+  "summary": "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them.",
+  "repo": "ultrastable/unlearn",
+  "public_url": "https://unlearn.ultrastable.org",
+  "planned_url": null,
+  "license": "LicenseRef-Ultrastable-USL-1.0",
+  "topics": [
+   "autonomous-system",
+   "cloudflare-workers",
+   "ultrastable"
+  ],
+  "layer": "tenant",
+  "runs_as": {
+   "platform": "cloudflare-workers",
+   "worker": "ultrastable-unlearn",
+   "deployed": true,
+   "deployed_from": "main",
+   "deployed_by": "ultrastable/ultrastable deploy-ultrastable"
+  }
+ }
+}

@@ -14,7 +14,8 @@
    "./worker/worker.test.mjs",
    "./worker/encyclopedia.test.mjs",
    "./worker/lab.test.mjs"
-  ]
+  ],
+  "repo": "ultrastable/unlearn"
  },
  "deploy": {
   "worker": "ultrastable-unlearn"

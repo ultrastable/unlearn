@@ -1,15 +1,15 @@
 name: vendor-sync
 # SPDX-License-Identifier: LicenseRef-Ultrastable-USL-1.0
-# TENANT-SYNC-1: keeps vendor/ultrastable/ equal to the core's main, so a model the core retires or a sibling the core adds reaches Unlearn
-# with no person. scripts/vendor_sync.mjs fetches the files the core's registry maps for this tenant (public repository, no credential), the
-# tests run on the result, and only a green result is committed to main. The platform's tenant-repos workflow sees main move past the last
-# deploy and redeploys the Worker (foundation/tenantrepos.py --behind), so the refresh reaches production the same day.
+# TENANT-SYNC-1: keeps vendor/ultrastable/ equal to the core's main, so a fix in the core reaches Unlearn with no person. The vendored
+# vendor_sync.mjs fetches the files the core's registry maps for this tenant (public repository, no credential), the tests and the tenant
+# standard run on the result, and only a green result is committed to main. The platform's tenant-repos workflow sees main move past the last
+# deploy and redeploys the Worker. Written by the platform scaffold; do not edit by hand.
 # budget: ~1 min per run, once a day (public repository: free minutes)
-# trigger: daily (the core's modelwatch and stakeholder changes land at most daily); manual dispatch
-# free-alternative: `node scripts/vendor_sync.mjs && node --test worker/*.test.mjs` from a cloud-hosted agent session
+# trigger: daily (core changes reach a tenant at most daily); manual dispatch
+# free-alternative: `node vendor/ultrastable/tools/vendor_sync.mjs && npm test` from a cloud-hosted agent session
 on:
   schedule:
-    - cron: "11 5 * * *"
+    - cron: "54 5 * * *"
   workflow_dispatch: {}
 permissions:
   contents: write
@@ -27,17 +27,19 @@ jobs:
         with: {node-version: 24}
       - name: Fetch the core's current copies
         env: {GITHUB_TOKEN: "${{ github.token }}"}
-        run: node scripts/vendor_sync.mjs
+        run: node vendor/ultrastable/tools/vendor_sync.mjs
       - name: Test before committing (a core change that breaks Unlearn stays out and turns this run red)
-        run: node --test --no-warnings worker/*.test.mjs
+        run: |
+          npm test
+          python3 vendor/ultrastable/tools/tenantstd.py --check --tenant .
       - name: Commit to main
         run: |
           set -euo pipefail
-          if git diff --quiet; then echo "vendored files already match core main"; exit 0; fi
-          git config user.name "ultrastable-vendor-sync"; git config user.email "vendor-sync@users.noreply.github.com"
           git add vendor/ultrastable
+          if git diff --cached --quiet; then echo "vendored files already match core main"; exit 0; fi
+          git config user.name "ultrastable-vendor-sync"; git config user.email "vendor-sync@users.noreply.github.com"
           git commit -m "vendor-sync: refresh core files from $(head -1 vendor/ultrastable/VENDORED_FROM) (TENANT-SYNC-1)"
           git push origin HEAD:main
       - name: Probe (red while any vendored file differs from core main)
         env: {GITHUB_TOKEN: "${{ github.token }}"}
-        run: node scripts/vendor_sync.mjs --check
+        run: node vendor/ultrastable/tools/vendor_sync.mjs --check

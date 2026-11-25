@@ -14,6 +14,8 @@ import { ENTRIES, CATEGORIES } from "./entries.js";
 import { checkEntries, freshness, reviewQueue } from "./evidence.js";
 import { LAB, triagePrompt, checkTriage, regrade, discover, discoverBacklog, draftPrompt, checkDraft, variantPrompt, checkVariant, decide, pickForVariant, SEARCHES, publishable, mythOfDay, dayIndex } from "./lab.js";
 import { socialQueue } from "./promote.js";
+import { contractRoute } from "../vendor/ultrastable/contract.js";
+import { SPEC } from "./contract.js";
 import { graphPage, home, topics, topic, entryPage, searchPage, playPage, howPage, sitemap, entryJson, byId, notFound, labPage, draftPage, feed, jsonFeed, FAVICON, changePage, planPage } from "./site.js";
 import { eventKey, practiceStats } from "./change.js";
 import { graphBeat, graphHealth, graphApi, graphView, connections } from "./graph.js";  // KGRAPH-1
@@ -342,6 +344,7 @@ export async function catchUp(env, ctx, now = Date.now()) {
   return true;
 }
 
+const POST_ONLY = new Set(SPEC.internal.filter(i => i.why.startsWith("POST only")).map(i => i.path));
 export async function handle(req, env, now = Date.now(), ctx = null) {
   const u = new URL(req.url), db = env.DB;
   if (req.method === "OPTIONS") return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST", "access-control-allow-headers": "content-type" } });
@@ -350,6 +353,7 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     const ran = await catchUp(env, null, now); return J({ ok: true, ran });
   }
   if (u.pathname === "/health") { const h = await health(env, now); return J(h, h.ok ? 200 : 503); }
+  if (req.method === "GET" || req.method === "HEAD") { const c = contractRoute(u.pathname, SPEC); if (c) return c; }  // FLEET-CONTRACT-1: /.well-known/ultrastable.json and /claims.json
   if (u.pathname.startsWith("/api/graph")) {  // KGRAPH-1: graph, insights, node, live method, health; POST follow (a reader's click on a suggested connection)
     if (req.method === "POST" && !(await allowTap(db, req))) return J({ ok: false, error: "rate_limited" }, 429);
     const r = await graphApi(req, db, now); if (r) return r;
@@ -505,6 +509,8 @@ export async function handle(req, env, now = Date.now(), ctx = null) {
     return J({ ok: true, code });
   }
   if (req.method === "GET" && !u.pathname.startsWith("/api/")) return html(notFound(), 404);
+  // a write route read with GET exists and takes POST: say so (405 with Allow), never "nothing here"
+  if (req.method !== "POST" && POST_ONLY.has(u.pathname)) return new Response(JSON.stringify({ ok: false, error: "method_not_allowed", message: "This route takes POST." }), { status: 405, headers: { "content-type": "application/json; charset=utf-8", allow: "POST" } });
   return say("not_found", "There's nothing here.", 404);
 }
 
