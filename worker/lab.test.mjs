@@ -187,3 +187,18 @@ test('a Lab draft gets its own page only after readers vote it up, and only with
   assert.ok((await (await handle(get('/feed.xml'), env, now)).text()).includes('Lab draft: Cracking down'));
   assert.match(await (await handle(get('/lab'), env, now)).text(), /it has its own page/);
 });
+
+test('the JSON Feed carries the same items as the Atom feed, and the favicon is served (STICKY-1)', async () => {
+  const env = { DB: d1() }; const now = Date.UTC(2026, 10, 25, 12);
+  const r = await handle(get('/feed.json'), env, now);
+  assert.equal(r.status, 200); assert.match(r.headers.get('content-type'), /application\/feed\+json/);
+  const j = await r.json();
+  assert.equal(j.version, 'https://jsonfeed.org/version/1.1'); assert.equal(j.feed_url, 'https://unlearn.ultrastable.org/feed.json');
+  assert.ok(j.items.length >= 30, 'thirty days of myth of the day');
+  for (const i of j.items) { assert.ok(i.id && i.url && i.title && i.content_text && i.date_published); assert.ok(Array.isArray(i.tags) && i.tags.length); }
+  const atom = await (await handle(get('/feed.xml'), env, now)).text();
+  assert.equal((atom.match(/<entry>/g) || []).length, j.items.length);
+  assert.ok(new Set(j.items.flatMap(i => i.tags)).size >= 2, 'more than one topic across the month');
+  for (const p of ['/favicon.ico', '/favicon.svg']) { const f = await handle(get(p), env, now); assert.equal(f.status, 200); assert.match(f.headers.get('content-type'), /svg/); }
+  assert.match(await (await handle(get('/'), env, now)).text(), /application\/feed\+json/);
+});

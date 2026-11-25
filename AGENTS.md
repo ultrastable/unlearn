@@ -12,3 +12,5 @@ lifecycle.json, runway.json) and the platform rules every agent follows live in 
   cron, `unlearn.ultrastable.org`). Nothing here holds a credential.
 - Honest grading: nothing publishes on an unverified citation; a model may only label or re-word, never add a number, a name or a source.
 - No child accounts and no child data; no cookies; reader taps are anonymous counts.
+- Vendored core files stay current by themselves: `vendor-sync.yml` daily fetches what the core's registry maps for Unlearn, tests, commits to main, and the platform redeploys (`node scripts/vendor_sync.mjs --check` is the probe). Never edit `vendor/` by hand.
+- Feeds: `/feed.xml` (Atom) and `/feed.json` (JSON Feed 1.1, read by the platform's stickiness step) share one item list (`feedItems` in `worker/site.js`).
