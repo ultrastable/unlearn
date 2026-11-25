@@ -3,8 +3,8 @@
 // TENANT-PROMO-1: promotion is part of a tenant's role. Unlearn serves its social queue at /social-queue.json (built by the shared
 // seed/worker/src/promoqueue.js, drained by the core publisher within social/gate.json) and links the other live systems that run on Ultrastable
 // from every page, read from doctrine/stakeholders.json so a new sibling appears here without a code change. Check: foundation/tenantpromo.py.
-import { promoQueue } from "../../../seed/worker/src/promoqueue.js";
-import SH from "../../../doctrine/stakeholders.json" with { type: "json" };
+import { promoQueue } from "../vendor/ultrastable/promoqueue.js";
+import SH from "../vendor/ultrastable/stakeholders.json" with { type: "json" };
 import { ENTRIES, CATEGORIES, DIRECTION, STRENGTH } from "./entries.js";
 
 export const SITE = "https://unlearn.ultrastable.org";
