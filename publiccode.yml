@@ -1,0 +1,20 @@
+# https://yml.publiccode.tools/
+publiccodeYmlVersion: "0.4"
+name: "Unlearn"
+url: "https://github.com/ultrastable/unlearn"
+platforms:
+  - web
+developmentStatus: stable
+softwareType: standalone/web
+legal:
+  license: "LicenseRef-Ultrastable-USL-1.0"
+maintenance:
+  type: internal
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en
+description:
+  en:
+    shortDescription: "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them."
+    longDescription: "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them."

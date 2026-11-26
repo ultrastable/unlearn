@@ -1,0 +1,17 @@
+# https://backstage.io/docs/features/software-catalog/descriptor-format
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: unlearn
+  title: "Unlearn"
+  description: "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them."
+  annotations:
+    github.com/project-slug: ultrastable/unlearn
+  links:
+    - url: "https://github.com/ultrastable/unlearn"
+      title: "Source"
+spec:
+  type: tenant
+  lifecycle: production
+  owner: "group:default/ultrastable"
+  system: ultrastable
