@@ -1,0 +1,21 @@
+{
+ "@context": "https://w3id.org/codemeta/3.0",
+ "@type": "SoftwareSourceCode",
+ "name": "Unlearn",
+ "description": "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them.",
+ "codeRepository": "https://github.com/ultrastable/unlearn",
+ "url": "https://unlearn.ultrastable.org",
+ "license": "https://github.com/ultrastable/unlearn/blob/main/LICENSE",
+ "author": [
+  {
+   "@type": "Person",
+   "@id": "https://orcid.org/0009-0002-4317-5604",
+   "name": "Rowan Brad Quni-Gudzinas"
+  }
+ ],
+ "keywords": [
+  "autonomous-system",
+  "cloudflare-workers",
+  "ultrastable"
+ ]
+}

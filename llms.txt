@@ -1,9 +1,28 @@
 # Unlearn
 
-> Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them. Licence: LicenseRef-Ultrastable-USL-1.0.
+> Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them.
+
+Every hour the beat resolves cited sources to DOIs and searches for new systematic reviews on each entry's question, surfaces them on the entry and queues the entry for re-grading when they pile up; reader guesses and shift answers re-order what the site shows first, with no person in the middle of the loop
+
+## Live
+
+- [Unlearn](https://unlearn.ultrastable.org/): the running system
+- [Health report](https://unlearn.ultrastable.org/health): the result of its last tick
+- [Statements](https://unlearn.ultrastable.org/claims.json): what it states, and the endpoint behind each statement
+- [llms.txt](https://unlearn.ultrastable.org/llms.txt): the index the running system serves, with every route it answers
 
 ## Start here
 
+- [README.md](README.md): what it is, where it runs and how it runs
 - [AGENTS.md](AGENTS.md): instructions for any coding agent
-- [README.md](README.md): what this repository holds
-- [ultrastable.json](ultrastable.json): the machine-readable manifest
+- [IDEA.md](IDEA.md): the one file a person writes
+- [ultrastable.json](ultrastable.json): the manifest this file, the README blocks, CITATION.cff, publiccode.yml and codemeta.json are rendered from
+- [codemeta.json](codemeta.json): software metadata (CodeMeta 3.0)
+
+## Optional
+
+- [Source](https://github.com/ultrastable/unlearn): the repository
+- [LICENSE](LICENSE): the licence, LicenseRef-Ultrastable-USL-1.0
+- [CONTRIBUTING.md](CONTRIBUTING.md): how work is contributed
+- [SECURITY.md](SECURITY.md): how to report a vulnerability
+- [CHANGELOG.md](CHANGELOG.md): what changed, release by release

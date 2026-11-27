@@ -1,0 +1,21 @@
+{
+ "repo": "ultrastable/unlearn",
+ "description": "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them.",
+ "homepage": "https://unlearn.ultrastable.org",
+ "topics": [
+  "autonomous-system",
+  "cloudflare-workers",
+  "ultrastable"
+ ],
+ "settings": {
+  "has_wiki": false,
+  "allow_squash_merge": true,
+  "allow_merge_commit": false,
+  "allow_rebase_merge": false,
+  "allow_auto_merge": true,
+  "allow_update_branch": true,
+  "delete_branch_on_merge": true,
+  "private": false,
+  "is_template": false
+ }
+}

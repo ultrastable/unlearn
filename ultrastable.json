@@ -5,7 +5,6 @@
   "summary": "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them.",
   "repo": "ultrastable/unlearn",
   "public_url": "https://unlearn.ultrastable.org",
-  "planned_url": null,
   "license": "LicenseRef-Ultrastable-USL-1.0",
   "topics": [
    "autonomous-system",
@@ -13,12 +12,21 @@
    "ultrastable"
   ],
   "layer": "tenant",
-  "runs_as": {
-   "platform": "cloudflare-workers",
-   "worker": "ultrastable-unlearn",
-   "deployed": true,
-   "deployed_from": "main",
-   "deployed_by": "ultrastable/ultrastable deploy-ultrastable"
-  }
+  "runs_as": [
+   {
+    "provider": "cloudflare",
+    "kind": "worker",
+    "name": "ultrastable-unlearn",
+    "routes": [
+     "unlearn.ultrastable.org"
+    ],
+    "how": "deployed from this repository's `main` by the Ultrastable platform"
+   }
+  ],
+  "parent": "ultrastable/ultrastable",
+  "status": "live",
+  "visibility": "public",
+  "visibility_reason": "DISCOVER-1: public by default",
+  "loop": "Every hour the beat resolves cited sources to DOIs and searches for new systematic reviews on each entry's question, surfaces them on the entry and queues the entry for re-grading when they pile up; reader guesses and shift answers re-order what the site shows first, with no person in the middle of the loop"
  }
 }

@@ -5,4 +5,6 @@ authors:
   - family-names: "Quni-Gudzinas"
     given-names: "Rowan Brad"
 repository-code: "https://github.com/ultrastable/unlearn"
-license: LicenseRef-Ultrastable-USL-1.0
+abstract: "Unlearn: popular beliefs where the evidence points another way, with graded evidence, named sources and a loop that keeps checking them."
+license-url: "https://github.com/ultrastable/unlearn/blob/main/LICENSE"
+url: "https://unlearn.ultrastable.org"
