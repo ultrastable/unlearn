@@ -73,6 +73,7 @@
    {"path": ".github/workflows/ci.yml", "mode": "managed"},
    {"path": ".github/workflows/vendor-sync.yml", "mode": "managed"},
    {"path": ".github/workflows/branch-cleanup.yml", "mode": "create"},
+   {"path": ".github/workflows/automerge.yml", "mode": "create"},
    {"path": "AGENTS.md", "mode": "block", "block": "standard"},
    {"path": "README.md", "mode": "block", "block": "live", "at": "after-title"},
    {"path": "package.json", "mode": "json"},
@@ -109,14 +110,8 @@
     "until": "2026-12-31",
     "item": "Q-MOVE-replication-ledger",
     "why": "the ledger is still in state moving: production deploys from the core copy instances/replication-ledger/worker, which imports ./vendor/knowledge.js, and the tenant repository's worker/ must stay equal to it until the move finishes; the engine moves to vendor/ultrastable/ in the same change that makes the tenant repository the deploy source"
-   },
-   {"conformance": "pending", "until": "2026-12-11", "item": "Q-CONFORM-replication-ledger", "why": "REPO-CONFORM-2 added the full conformance set and its vendored reader to this standard; this repository was created before it, its ultrastable.json is in the older tenant-standard shape and it does not carry the files yet. Its own pull request runs tenantstd --normalize and --scaffold, which write and render every file of the register and vendor the reader; until that lands the reading runs and each finding is printed as held, not failed"}
-  ],
-  "unlearn": {"conformance": "pending", "until": "2026-12-11", "item": "Q-CONFORM-unlearn", "why": "REPO-CONFORM-2 added the full conformance set and its vendored reader to this standard; this repository was created before it, its ultrastable.json is in the older tenant-standard shape and it does not carry the files yet. Its own pull request runs tenantstd --normalize and --scaffold, which write and render every file of the register and vendor the reader; until that lands the reading runs and each finding is printed as held, not failed"},
-  "what-works": {"conformance": "pending", "until": "2026-12-11", "item": "Q-CONFORM-what-works", "why": "REPO-CONFORM-2 added the full conformance set and its vendored reader to this standard; this repository was created before it, its ultrastable.json is in the older tenant-standard shape and it does not carry the files yet. Its own pull request runs tenantstd --normalize and --scaffold, which write and render every file of the register and vendor the reader; until that lands the reading runs and each finding is printed as held, not failed"},
-  "base-rates": {"conformance": "pending", "until": "2026-12-11", "item": "Q-CONFORM-base-rates", "why": "REPO-CONFORM-2 added the full conformance set and its vendored reader to this standard; this repository was created before it, its ultrastable.json is in the older tenant-standard shape and it does not carry the files yet. Its own pull request runs tenantstd --normalize and --scaffold, which write and render every file of the register and vendor the reader; until that lands the reading runs and each finding is printed as held, not failed"},
-  "did-it-work": {"conformance": "pending", "until": "2026-12-11", "item": "Q-CONFORM-did-it-work", "why": "REPO-CONFORM-2 added the full conformance set and its vendored reader to this standard; this repository was created before it, its ultrastable.json is in the older tenant-standard shape and it does not carry the files yet. Its own pull request runs tenantstd --normalize and --scaffold, which write and render every file of the register and vendor the reader; until that lands the reading runs and each finding is printed as held, not failed"},
-  "open-questions": {"conformance": "pending", "until": "2026-12-11", "item": "Q-CONFORM-open-questions", "why": "REPO-CONFORM-2 added the full conformance set and its vendored reader to this standard; this repository was created before it, its ultrastable.json is in the older tenant-standard shape and it does not carry the files yet. Its own pull request runs tenantstd --normalize and --scaffold, which write and render every file of the register and vendor the reader; until that lands the reading runs and each finding is printed as held, not failed"}
+   }
+  ]
  },
  "exempt": {
   "practical-solutions": {
